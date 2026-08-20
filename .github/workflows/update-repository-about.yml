@@ -1,0 +1,50 @@
+name: Update repository About metadata
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/update-repository-about.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update description and topics
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh api -X PATCH "repos/${{ github.repository }}" \
+            -f description='Consent-first Windows remote-support controller with audited RDP, SSH/SFTP and VNC hand-offs for Windows, macOS and Linux.' >/dev/null
+
+          gh api -X PUT "repos/${{ github.repository }}/topics" --input - <<'JSON' >/dev/null
+          {
+            "names": [
+              "windows",
+              "remote-support",
+              "remote-desktop",
+              "remote-access",
+              "rdp",
+              "ssh",
+              "sftp",
+              "vnc",
+              "macos",
+              "linux",
+              "ubuntu",
+              "cpp",
+              "cpp20",
+              "win32",
+              "x86",
+              "x64",
+              "security",
+              "audit-logging",
+              "consent"
+            ]
+          }
+          JSON
