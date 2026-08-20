@@ -5,6 +5,10 @@ on:
     branches: [master]
     paths:
       - '.github/workflows/backfill-portable-v0.1.0.yml'
+  pull_request:
+    paths:
+      - 'portable/**'
+      - '.github/workflows/backfill-portable-v0.1.0.yml'
 
 permissions:
   contents: write
@@ -93,6 +97,7 @@ jobs:
           if-no-files-found: error
 
   publish:
+    if: github.event_name == 'push'
     needs: [macos, linux]
     runs-on: ubuntu-latest
     steps:
