@@ -45,7 +45,7 @@ The redesigned application currently provides:
 - `/W4`, SDL checks, `/GS`, Control Flow Guard, ASLR and DEP/NX on both architectures;
 - CET-compatible linking on x64;
 - automated Debug/Release builds and self-tests for x86 and x64;
-- CodeQL security analysis of both modern targets.
+- build-independent CodeQL security analysis of the modern C++ source.
 
 See [`docs/SECURE_REDESIGN.md`](docs/SECURE_REDESIGN.md) and [`SECURITY.md`](SECURITY.md) for the wider security requirements.
 
