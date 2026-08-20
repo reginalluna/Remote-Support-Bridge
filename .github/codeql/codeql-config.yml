@@ -1,0 +1,4 @@
+name: Security-focused CodeQL configuration
+
+queries:
+  - uses: security-extended
