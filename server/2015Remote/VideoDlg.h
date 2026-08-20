@@ -43,7 +43,7 @@ public:
 		}
 
 		ICCompressGetFormat(m_hIC, m_lpbmiInput, &m_bmiOutput);
-		// Ïò±àÂëÆ÷·¢ËÍÑéÖ¤
+		// å‘ç¼–ç å™¨å‘é€éªŒè¯
 		ICSendMessage(m_hIC, 0x60c9, 0xf7329ace, 0xacdeaea2);
 
 		m_cv.hic = m_hIC;
@@ -90,8 +90,10 @@ public:
 	}
 
 	CVideoCodec()
+		: m_hIC(NULL), m_lpbmiInput(NULL)
 	{
-		m_lpbmiInput = NULL;
+		ZeroMemory(&m_cv, sizeof(m_cv));
+		ZeroMemory(&m_bmiOutput, sizeof(m_bmiOutput));
 	}
 
 	virtual ~CVideoCodec()
@@ -103,6 +105,7 @@ public:
 		ICSeqCompressFrameEnd(&m_cv);
 		ICCompressorFree(&m_cv);
 		ICClose(m_hIC);
+		m_hIC = NULL;
 	}
 	int MyEnumCodecs(int *fccHandler, char *strName)
 	{
@@ -125,9 +128,15 @@ public:
 		{
 			ICGetInfo(hIC, &icInfo, sizeof(icInfo)); 
 			*fccHandler = icInfo.fccHandler;
-			//ÓÉÓÚµÃµ½µÄszDescriptionÊÇUNICODEË«×Ö½Ú×Ö´®£¬ËùÒÔÒª×ª»»ÎªASCIIµÄ
+			//ç”±äºå¾—åˆ°çš„szDescriptionæ˜¯UNICODEåŒå­—èŠ‚å­—ä¸²ï¼Œæ‰€ä»¥è¦è½¬æ¢ä¸ºASCIIçš„
 			if (strName != NULL)
-				wcstombs(strName, icInfo.szDescription, 256);
+			{
+				size_t converted = 0;
+				if (wcstombs_s(&converted, strName, 256, icInfo.szDescription, _TRUNCATE) != 0)
+				{
+					strName[0] = '\0';
+				}
+			}
 		}
 		else nRet = -1;
 
@@ -139,14 +148,14 @@ public:
 };
 
 
-// CVideoDlg ¶Ô»°¿ò
+// CVideoDlg å¯¹è¯æ¡†
 
 class CVideoDlg : public CDialog
 {
 	DECLARE_DYNAMIC(CVideoDlg)
 
 public:
-	CVideoDlg(CWnd* pParent = NULL, IOCPServer* IOCPServer = NULL, CONTEXT_OBJECT *ContextObject = NULL);   // ±ê×¼¹¹Ôìº¯Êı
+	CVideoDlg(CWnd* pParent = NULL, IOCPServer* IOCPServer = NULL, CONTEXT_OBJECT *ContextObject = NULL);   // æ ‡å‡†æ„é€ å‡½æ•°
 	virtual ~CVideoDlg();
 	CONTEXT_OBJECT* m_ContextObject;
 	IOCPServer*     m_iocpServer;
@@ -164,12 +173,12 @@ public:
 	HDC			m_hDC;
 	HDRAWDIB	m_hDD;
 
-	CVideoCodec	*m_pVideoCodec;   // ÊÓÆµÑ¹ËõÀà
-// ¶Ô»°¿òÊı¾İ
+	CVideoCodec	*m_pVideoCodec;   // è§†é¢‘å‹ç¼©ç±»
+// å¯¹è¯æ¡†æ•°æ®
 	enum { IDD = IDD_DIALOG_VIDEO };
 
 protected:
-	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV Ö§³Ö
+	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV æ”¯æŒ
 
 	DECLARE_MESSAGE_MAP()
 public:
