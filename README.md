@@ -1,47 +1,59 @@
 # Windows Remote Support
 
-A native **x86/x64 Windows remote-support application** built around explicit consent, auditing and hand-offs to established remote-access protocols.
+A native **x86/x64 Windows remote-support controller** built around explicit consent, auditing and hand-offs to established remote-access protocols.
 
-The controller application lives under [`modern/`](modern/). The historical Windows/MFC implementation remains under `client/` and `server/` for academic comparison and migration analysis; the new application does **not** link to or activate that historical command protocol.
+The controller application lives under [`modern/`](modern/). The historical Windows/MFC material under `client/` and `server/` is kept separate for academic comparison and migration analysis; the current application does **not** link to or activate that historical command protocol.
 
 > Use the software only on systems you own or are explicitly authorised to administer or test.
 
-## Current release
+## Release
 
-Version **0.3.0** adds cross-platform target support for **Windows, macOS and Ubuntu/Linux** through existing authenticated remote-access clients.
+**v0.1.0** is the first public release of the redesigned application. It supports Windows controllers and can connect to authorised **Windows, macOS and Ubuntu/Linux** targets through existing authenticated remote-access clients.
 
-Release builds are produced for:
+Release builds are provided for:
 
 - **x86 / Win32** — native 32-bit Windows controller;
 - **x64** — native 64-bit Windows controller.
 
-## Desktop interface
+## What it can open
 
-Enter the remote computer hostname or IP address, start an explicitly consented support session, then choose one of these hand-offs:
+Enter the remote computer hostname or IP address, start an explicitly consented support session, then choose a connection type:
 
-- **RDP desktop** — Windows and RDP-enabled Ubuntu desktops;
-- **SSH terminal** — macOS, Ubuntu/Linux and other SSH servers through the Windows OpenSSH client;
-- **SFTP files** — authenticated file transfer to macOS, Ubuntu/Linux and other SFTP servers through the Windows OpenSSH client;
+- **RDP desktop** — Windows and RDP-enabled Ubuntu/Linux desktops;
+- **SSH terminal** — macOS, Ubuntu/Linux and other SSH servers through Windows OpenSSH;
+- **SFTP files** — authenticated file transfer to macOS, Ubuntu/Linux and other SFTP servers through Windows OpenSSH;
 - **VNC desktop** — macOS Screen Sharing and VNC-enabled Linux desktops through a VNC viewer registered on the Windows controller.
 
-The connection buttons stay disabled until a support session has been explicitly approved. The application validates the target and records the hand-off before launching the selected client.
+The connection controls remain disabled until the local support session has been explicitly approved. The application validates the target and records the hand-off before opening the selected client.
+
+## Quick start
+
+1. Download `Windows-Remote-Support-x64.exe` for a normal 64-bit Windows PC, or `Windows-Remote-Support-x86.exe` for a 32-bit Windows system.
+2. Run the executable.
+3. Enter the remote computer hostname or IP address.
+4. Select **Start consented session** and approve the session locally.
+5. Select **RDP desktop**, **SSH terminal**, **SFTP files** or **VNC desktop**.
+6. Authenticate in the client opened by Windows.
+7. Select **End session** when finished.
+
+The application does not store remote passwords.
 
 ## Target setup
 
-### Windows target
+### Windows
 
 Enable Windows Remote Desktop on an edition that supports incoming RDP connections, then use **RDP desktop**.
 
-### macOS target
+### macOS
 
-Use the macOS Sharing settings for the capability you need:
+Use macOS **System Settings > General > Sharing**:
 
 - enable **Remote Login** for SSH and SFTP;
-- enable **Screen Sharing** for a VNC-compatible desktop connection.
+- enable **Screen Sharing** for VNC-compatible desktop access.
 
-For VNC desktop access from Windows, install a trusted VNC viewer that registers the `vnc://` URL scheme.
+For VNC desktop access from the Windows controller, install a trusted VNC viewer that registers the `vnc://` URL scheme.
 
-### Ubuntu/Linux target
+### Ubuntu/Linux
 
 Depending on the desktop and services installed:
 
@@ -49,7 +61,7 @@ Depending on the desktop and services installed:
 - enable GNOME Remote Desktop or another authorised RDP server for **RDP desktop**;
 - enable a VNC server for **VNC desktop**.
 
-Authentication, encryption and authorisation remain the responsibility of the selected RDP, SSH/SFTP or VNC implementation. This application does not install a custom background listener or hidden control service.
+Authentication, encryption and authorisation remain the responsibility of the selected RDP, SSH/SFTP or VNC implementation. The controller does not install a custom background listener or hidden control service.
 
 ## Audit log
 
@@ -102,7 +114,7 @@ Run the self-test:
 
 A successful self-test exits with code `0`.
 
-## Release artefacts
+## Release files
 
 The release pipeline publishes:
 
@@ -115,7 +127,7 @@ Windows-Remote-Support-x64.zip
 
 The `.exe` files are encapsulated single-file builds with the MSVC runtime linked statically.
 
-The preview is not code-signed; production distribution should add trusted Windows code signing and signed update metadata.
+The first release is not code-signed; production distribution should add trusted Windows code signing and signed update metadata.
 
 ## Security baseline
 
@@ -143,7 +155,3 @@ Windows-Remote-Support/
 ├── VERSION
 └── README.md
 ```
-
-## Historical implementation
-
-The legacy `client/` and `server/` trees remain available for academic comparison, migration analysis and defensive review. They are separate from the new application and are not the security architecture of the redesign.
