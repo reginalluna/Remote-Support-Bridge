@@ -6,13 +6,14 @@ The historical protocol in this repository should not be promoted directly into 
 
 The new [`modern/`](../modern/) application now establishes the first security boundary independently of the historical command protocol:
 
-- native x64, Unicode and C++20 build;
+- native x86/Win32 and x64 builds from one Unicode C++20 source tree;
 - explicit visible consent before local session initialisation;
 - 128-bit session identifiers generated with Windows CNG;
 - local UTC audit records with fail-closed behaviour if an approved session cannot be recorded;
 - no administrator elevation request;
 - no network listener and no privileged remote action in the initial baseline;
-- modern MSVC exploit mitigations and automated x64 Debug/Release builds with a non-interactive self-test.
+- modern MSVC exploit mitigations on both architectures, with CET-compatible linking on x64;
+- automated x86/x64 Debug/Release builds and non-interactive self-tests.
 
 This baseline is intentionally small. It gives subsequent authentication, transport and capability work a reviewable place to attach without inheriting the legacy protocol's trust assumptions.
 
@@ -78,7 +79,7 @@ Apply connection limits, request limits, lockout/back-off behaviour and anomaly 
 ## Migration strategy
 
 1. Keep the historical implementation separate for comparison and defensive review.
-2. Build the new x64 session shell independently of legacy command tokens. **Completed.**
+2. Build the new x86/x64 session shell independently of legacy command tokens. **Completed.**
 3. Add authenticated encrypted transport and operator/device identity to the new application.
 4. Add session expiry, replay resistance and key rotation.
 5. Make audit records tamper-evident and suitable for central collection.
