@@ -1,88 +1,69 @@
 # Windows Remote Support
 
-A native **x86/x64 Windows remote-support application** built around explicit consent, auditing and Windows' authenticated Remote Desktop subsystem.
+A native **x86/x64 Windows remote-support application** built around explicit consent, auditing and hand-offs to established remote-access protocols.
 
-The current application lives under [`modern/`](modern/). The historical Windows/MFC implementation remains under `client/` and `server/` for academic comparison and migration analysis; the new application does **not** link to or activate that historical command protocol.
+The controller application lives under [`modern/`](modern/). The historical Windows/MFC implementation remains under `client/` and `server/` for academic comparison and migration analysis; the new application does **not** link to or activate that historical command protocol.
 
 > Use the software only on systems you own or are explicitly authorised to administer or test.
 
 ## Current release
 
-Version **0.2.0** adds a functional Windows Remote Desktop hand-off to the consent-first desktop application.
+Version **0.3.0** adds cross-platform target support for **Windows, macOS and Ubuntu/Linux** through existing authenticated remote-access clients.
 
 Release builds are produced for:
 
-- **x86 / Win32** — native 32-bit Windows executable;
-- **x64** — native 64-bit Windows executable.
-
-Both architectures are built from the same C++20 source and are continuously compiled and self-tested in GitHub Actions.
+- **x86 / Win32** — native 32-bit Windows controller;
+- **x64** — native 64-bit Windows controller.
 
 ## Desktop interface
 
-When `RemoteSupport.exe` starts, the main window shows:
+Enter the remote computer hostname or IP address, start an explicitly consented support session, then choose one of these hand-offs:
 
-- current support-session status;
-- the architecture of the running build (`x86` or `x64`);
-- a **Remote computer name or IP address** field;
-- **Start consented session** — generates a cryptographically random session identifier and asks the local user for explicit approval;
-- **Connect with Windows RDP** — opens the built-in Windows Remote Desktop client for the entered computer after consent and audit checks succeed;
-- **End session** — terminates the application-side support session and records the event;
-- **Open audit log** — opens the local security-event log;
-- **About** — shows architecture and security information.
+- **RDP desktop** — Windows and RDP-enabled Ubuntu desktops;
+- **SSH terminal** — macOS, Ubuntu/Linux and other SSH servers through the Windows OpenSSH client;
+- **SFTP files** — authenticated file transfer to macOS, Ubuntu/Linux and other SFTP servers through the Windows OpenSSH client;
+- **VNC desktop** — macOS Screen Sharing and VNC-enabled Linux desktops through a VNC viewer registered on the Windows controller.
 
-The RDP button stays disabled until a support session has been explicitly approved. The application validates the target value and records the Remote Desktop hand-off before launching `mstsc.exe`.
+The connection buttons stay disabled until a support session has been explicitly approved. The application validates the target and records the hand-off before launching the selected client.
 
-## Functional remote support
+## Target setup
 
-The application now delegates the actual remote connection to **Windows Remote Desktop (RDP)** rather than implementing its own screen-capture, input-injection or background network service.
+### Windows target
 
-When the target Windows computer is configured to accept Remote Desktop connections and is reachable under the target system's normal Windows network and security policy, Windows RDP provides:
+Enable Windows Remote Desktop on an edition that supports incoming RDP connections, then use **RDP desktop**.
 
-- the remote desktop display;
-- keyboard and mouse interaction;
-- Windows authentication and authorisation;
-- Windows-managed session encryption;
-- optional resource redirection according to the user's RDP settings and target policy.
+### macOS target
 
-This means the application is functional for real two-computer remote sessions while retaining Windows' existing security boundary instead of adding a custom privileged remote-control protocol.
+Use the macOS Sharing settings for the capability you need:
 
-## Security baseline
+- enable **Remote Login** for SSH and SFTP;
+- enable **Screen Sharing** for a VNC-compatible desktop connection.
 
-The redesigned application currently provides:
+For VNC desktop access from Windows, install a trusted VNC viewer that registers the `vnc://` URL scheme.
 
-- native **x86 (Win32)** and **x64** output;
-- Unicode Windows APIs;
-- C++20;
-- visible user consent before the RDP hand-off is enabled;
-- 128-bit random session identifiers from Windows CNG (`BCryptGenRandom`);
-- explicit application-side session termination;
-- local UTC audit records;
-- fail-closed behaviour when a security-relevant audit event cannot be written;
-- strict validation of the Remote Desktop target field;
-- no requested administrator elevation;
-- no custom network listener or hidden background control service;
-- `/W4`, SDL checks, `/GS`, Control Flow Guard, ASLR and DEP/NX on both architectures;
-- CET-compatible linking on x64;
-- automated Debug/Release builds and self-tests for x86 and x64;
-- build-independent CodeQL security analysis of the modern C++ source.
+### Ubuntu/Linux target
 
-See [`docs/SECURE_REDESIGN.md`](docs/SECURE_REDESIGN.md) and [`SECURITY.md`](SECURITY.md) for the wider security requirements.
+Depending on the desktop and services installed:
+
+- enable OpenSSH Server for **SSH terminal** and **SFTP files**;
+- enable GNOME Remote Desktop or another authorised RDP server for **RDP desktop**;
+- enable a VNC server for **VNC desktop**.
+
+Authentication, encryption and authorisation remain the responsibility of the selected RDP, SSH/SFTP or VNC implementation. This application does not install a custom background listener or hidden control service.
 
 ## Audit log
 
-Security-relevant session events are written to:
+Security-relevant events are written to:
 
 ```text
 %LOCALAPPDATA%\WindowsRemoteSupport\audit.log
 ```
 
-Records include events such as `consent_granted`, `consent_denied`, `rdp_launch_requested`, `rdp_client_started`, `rdp_launch_failed` and `session_ended`.
+Records include consent decisions, session termination and protocol hand-offs such as `rdp_launch_requested`, `ssh_client_started`, `sftp_client_started` and `vnc_client_started`.
 
 ## Build from source
 
-### Requirements
-
-Use a supported Windows development machine with:
+Requirements:
 
 - Visual Studio 2026 with **Desktop development with C++**;
 - a current Windows SDK;
@@ -96,7 +77,7 @@ git clone https://github.com/reginalluna/Windows-Remote-Support.git
 cd Windows-Remote-Support
 ```
 
-### Build x64
+Build x64:
 
 ```powershell
 cmake -S modern -B build-modern-x64 -A x64
@@ -104,7 +85,7 @@ cmake --build build-modern-x64 --config Release --parallel
 .\build-modern-x64\Release\RemoteSupport.exe
 ```
 
-### Build x86 / Win32
+Build x86:
 
 ```powershell
 cmake -S modern -B build-modern-x86 -A Win32
@@ -112,11 +93,7 @@ cmake --build build-modern-x86 --config Release --parallel
 .\build-modern-x86\Release\RemoteSupport.exe
 ```
 
-The x86 build runs natively on 32-bit Windows and through WoW64 on compatible x64 Windows installations. The x64 build is the preferred target for current 64-bit Windows PCs.
-
-## Automated self-test
-
-Either build can run the non-interactive baseline test:
+Run the self-test:
 
 ```powershell
 .\build-modern-x64\Release\RemoteSupport.exe --self-test
@@ -127,7 +104,7 @@ A successful self-test exits with code `0`.
 
 ## Release artefacts
 
-The release pipeline builds both Release targets and publishes standalone executables as well as ZIP archives:
+The release pipeline publishes:
 
 ```text
 Windows-Remote-Support-x86.exe
@@ -136,9 +113,15 @@ Windows-Remote-Support-x86.zip
 Windows-Remote-Support-x64.zip
 ```
 
-The `.exe` files are encapsulated single-file builds. The MSVC runtime is linked statically, so no separate Visual C++ redistributable files are packaged with them; they depend only on standard Windows system components used by the application.
+The `.exe` files are encapsulated single-file builds with the MSVC runtime linked statically.
 
-The preview is not code-signed; production distribution should add a trusted Windows code-signing certificate and signed update metadata.
+The preview is not code-signed; production distribution should add trusted Windows code signing and signed update metadata.
+
+## Security baseline
+
+The redesigned application uses visible consent, random session identifiers, local UTC audit records, fail-closed audit checks, target validation, no requested administrator elevation, no custom background listener, `/W4`, SDL checks, `/GS`, Control Flow Guard, ASLR, DEP/NX and x64 CET-compatible linking.
+
+See [`docs/SECURE_REDESIGN.md`](docs/SECURE_REDESIGN.md) and [`SECURITY.md`](SECURITY.md) for the wider security requirements.
 
 ## Repository layout
 
@@ -147,11 +130,11 @@ Windows-Remote-Support/
 ├── modern/
 │   ├── CMakeLists.txt
 │   └── RemoteSupport/
-│       └── main.cpp            # consent UI + audited Windows RDP hand-off
+│       └── main.cpp            # consent UI + audited RDP/SSH/SFTP/VNC hand-offs
 ├── .github/workflows/
 │   ├── codeql.yml
-│   ├── modern-windows.yml      # x86/x64 Debug/Release builds + self-tests
-│   └── release.yml             # standalone EXEs + ZIP release packaging
+│   ├── modern-windows.yml
+│   └── release.yml
 ├── client/                     # historical client source
 ├── server/                     # historical MFC controller source
 ├── docs/SECURE_REDESIGN.md
@@ -164,9 +147,3 @@ Windows-Remote-Support/
 ## Historical implementation
 
 The legacy `client/` and `server/` trees remain available for academic comparison, migration analysis and defensive review. They are separate from the new application and are not the security architecture of the redesign.
-
-## Contributing
-
-Keep security-sensitive changes small and reviewable. Do not weaken consent, auditing or fail-closed behaviour to preserve compatibility with the historical protocol.
-
-Do not commit local build products, IDE caches, credentials, signing keys or generated secrets.
