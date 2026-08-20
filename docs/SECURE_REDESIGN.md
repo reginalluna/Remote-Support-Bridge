@@ -1,91 +1,85 @@
 # Secure redesign direction
 
-The historical protocol in this repository should not be promoted directly into a production remote-support protocol. A modern implementation should place a new security boundary around every sensitive action instead of adding isolated checks to individual legacy commands.
+Remote Support Bridge is the maintained redesign in this repository. It keeps the supported controller separate from the historical Windows/MFC command protocol and uses explicit consent, local auditing and established remote-access clients as its current security boundary.
 
 ## Implemented baseline
 
-The new [`modern/`](../modern/) application now establishes the first security boundary independently of the historical command protocol:
+The maintained application now includes:
 
-- native x86/Win32 and x64 builds from one Unicode C++20 source tree;
-- explicit visible consent before local session initialisation;
-- 128-bit session identifiers generated with Windows CNG;
-- local UTC audit records with fail-closed behaviour if an approved session cannot be recorded;
-- no administrator elevation request;
-- no network listener and no privileged remote action in the initial baseline;
-- modern MSVC exploit mitigations on both architectures, with CET-compatible linking on x64;
-- automated x86/x64 Debug/Release builds and non-interactive self-tests.
+- native Windows x86/Win32 and x64 C++20 controller builds under [`modern/`](../modern/);
+- packaged macOS ARM64 and x86_64 controller applications and an Ubuntu/Linux x86_64 AppImage under [`portable/`](../portable/);
+- explicit visible consent before a local support session is enabled;
+- random 128-bit session identifiers;
+- UTC audit logging with fail-closed checks before connection hand-offs;
+- validated host/IP input;
+- no stored remote passwords;
+- RDP, SSH/SFTP and VNC hand-offs through established local clients;
+- no requested administrator elevation in the controller;
+- Windows exploit mitigations including `/GS`, Control Flow Guard, ASLR, DEP/NX and x64 CET-compatible linking;
+- CI self-tests, CodeQL analysis and release packaging for the supported platforms.
 
-This baseline is intentionally small. It gives subsequent authentication, transport and capability work a reviewable place to attach without inheriting the legacy protocol's trust assumptions.
+The controller does not implement a new privileged remote-control listener. Authentication, encryption and remote-side authorisation remain the responsibility of the RDP, SSH/SFTP or VNC implementation selected by the user.
 
 ## Security goals
 
-A replacement design should provide:
+The project should continue to provide:
 
-- authenticated operator and device identity;
-- encrypted, integrity-protected transport;
-- explicit authorisation for every sensitive capability;
-- visible user consent where appropriate;
-- least privilege and privilege separation;
-- short-lived sessions and replay resistance;
-- tamper-evident audit records;
-- signed software/update artefacts;
-- dependency and build provenance;
-- revocation, incident-response and key-rotation mechanisms.
+- clear operator and endpoint identity where a protocol supports it;
+- encrypted, integrity-protected transport supplied by maintained protocol implementations;
+- explicit local approval before sensitive support activity;
+- least-privilege execution;
+- short-lived local session state;
+- auditable session start/end and protocol hand-offs;
+- signed release artefacts and provenance as distribution matures;
+- dependency and build-health monitoring;
+- a reliable user-visible way to end the local support session.
 
-## Suggested architecture
+## Architecture
 
-### 1. Identity plane
+### 1. Controller boundary
 
-Use a dedicated identity provider or device-enrolment authority. Operators and endpoints should have distinct identities. Do not use a shared static password or a secret embedded in the executable.
+Remote Support Bridge owns local consent, target validation, session state and audit logging. These controls must succeed before a remote-access client is opened.
 
-Prefer short-lived credentials and explicit revocation over long-lived bearer secrets.
+### 2. Protocol boundary
 
-### 2. Transport plane
+RDP, SSH/SFTP and VNC are delegated to installed operating-system clients or registered handlers. The project should prefer maintained platform implementations rather than designing a new cryptographic or remote-control protocol.
 
-Use a maintained TLS implementation with certificate validation and mutual authentication where appropriate. Transport security must include hostname/device identity checks, modern protocol versions, key rotation and certificate expiry handling.
+### 3. Consent and visibility
 
-Do not design a custom cryptographic protocol.
+Connection controls remain unavailable until the local user approves a support session. Session termination and protocol hand-offs are security-relevant events and should remain visible and auditable.
 
-### 3. Authorisation plane
+### 4. Credential handling
 
-Define capabilities such as view-screen, control-input, transfer-file or inspect-system as separate permissions. Grant the minimum required permissions to each operator/session.
-
-High-impact operations should require stronger policy and, where appropriate, a fresh user confirmation.
-
-### 4. Consent and user visibility
-
-Sensitive support activity should be visible to the endpoint user. A modern client should provide a clear consent prompt, active-session indicator and a reliable way to terminate the session.
-
-Do not rely on hidden background execution as the normal operating model.
+Remote credentials are entered into the selected protocol client rather than stored by Remote Support Bridge. Do not add shared static passwords or secrets embedded in release binaries.
 
 ### 5. Privilege separation
 
-Run the normal client without administrative privileges. If a narrowly scoped privileged operation is genuinely required, isolate it behind a small broker with explicit policy rather than running the entire remote-support process elevated.
+The normal controller should continue to run without administrative privileges. If a future feature genuinely requires elevation, keep it narrowly scoped and separate from the main controller process.
 
 ### 6. Audit and monitoring
 
-Record security-relevant events such as authentication, authorisation decisions, session start/end, sensitive capability use and update installation. Logs should avoid storing unnecessary secrets while remaining suitable for incident investigation.
+Record consent decisions, session start/end and protocol hand-offs without storing unnecessary secrets. Higher-assurance deployments can centralise or make these records tamper-evident without changing the local consent boundary.
 
-For high-assurance deployments, protect audit records against tampering and centralise them outside the endpoint.
+### 7. Release and supply-chain security
 
-### 7. Update and supply-chain security
+Add trusted Windows signing, Apple Developer ID signing/notarisation and release provenance before treating public distribution as mature. Keep third-party build dependencies current and monitored.
 
-Require signed releases and signed update metadata. Maintain an inventory of third-party dependencies and scan them continuously. Builds should be reproducible enough to support provenance and release verification.
+## Historical source boundary
 
-### 8. Abuse resistance
+The `client/` and `server/` trees are historical reference material. They should remain separate from the maintained controller and must not become an implicit dependency of the supported release path.
 
-Apply connection limits, request limits, lockout/back-off behaviour and anomaly monitoring at the service boundary. Deny by default when identity or policy checks cannot be completed.
+The historical protocol predates modern mutual authentication, encrypted transport, explicit consent and role-based authorisation. The redesign should not attempt to make that protocol the production transport for Remote Support Bridge.
 
-## Migration strategy
+## Current migration status
 
-1. Keep the historical implementation separate for comparison and defensive review.
-2. Build the new x86/x64 session shell independently of legacy command tokens. **Completed.**
-3. Add authenticated encrypted transport and operator/device identity to the new application.
-4. Add session expiry, replay resistance and key rotation.
-5. Make audit records tamper-evident and suitable for central collection.
-6. Add individual support capabilities only after their policy, consent and audit requirements are defined and tested.
-7. Require security review and threat-model updates for every newly enabled capability.
+1. Separate maintained controller code from the historical command protocol. **Completed.**
+2. Provide native Windows x86/x64 consent and audit UI. **Completed.**
+3. Provide packaged macOS and Linux controllers with the same local consent/audit model. **Completed.**
+4. Delegate remote sessions to established RDP, SSH/SFTP and VNC clients. **Completed.**
+5. Add trusted cross-platform release signing and notarisation. **Pending.**
+6. Improve protocol-handler discovery and error reporting. **Pending.**
+7. Extend the threat model whenever a new capability changes the trust boundary. **Ongoing.**
 
 ## Non-goal
 
-The redesign should not aim to make the historical unauthenticated command protocol more deployable. The security boundary should be new, explicit and independently reviewable.
+The redesign is not intended to make the historical unauthenticated privileged command protocol more deployable. The maintained security boundary should remain explicit, reviewable and separate from that code.
