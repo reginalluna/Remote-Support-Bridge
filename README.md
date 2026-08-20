@@ -176,4 +176,4 @@ Do not commit Visual Studio caches, local build products or user-specific projec
 
 ## Disclaimer
 
-This is legacy software with security-sensitive capabilities. Only use it where you have explicit permission. Treat the repository as a maintenance and defensive-modernisation project, not as a security-reviewed remote-support product.
+This is legacy software with security-sensitive capabilities. Only use it where you have explicit permission.
