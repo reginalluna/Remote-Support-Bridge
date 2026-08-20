@@ -52,8 +52,12 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           New-Item -ItemType Directory -Force package-x86 | Out-Null
           New-Item -ItemType Directory -Force package-x64 | Out-Null
-          Copy-Item build-release-x86\Release\RemoteSupport.exe package-x86\RemoteSupport.exe
-          Copy-Item build-release-x64\Release\RemoteSupport.exe package-x64\RemoteSupport.exe
+
+          Copy-Item build-release-x86\Release\RemoteSupport.exe dist\Windows-Remote-Support-x86.exe
+          Copy-Item build-release-x64\Release\RemoteSupport.exe dist\Windows-Remote-Support-x64.exe
+
+          Copy-Item dist\Windows-Remote-Support-x86.exe package-x86\RemoteSupport.exe
+          Copy-Item dist\Windows-Remote-Support-x64.exe package-x64\RemoteSupport.exe
           Copy-Item README.md package-x86\README.md
           Copy-Item README.md package-x64\README.md
           Compress-Archive -Path package-x86\* -DestinationPath dist\Windows-Remote-Support-x86.zip
@@ -66,6 +70,8 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           gh release create "v$env:VERSION" `
+            dist\Windows-Remote-Support-x86.exe `
+            dist\Windows-Remote-Support-x64.exe `
             dist\Windows-Remote-Support-x86.zip `
             dist\Windows-Remote-Support-x64.zip `
             --target "${{ github.sha }}" `
