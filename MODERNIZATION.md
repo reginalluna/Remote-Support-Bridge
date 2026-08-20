@@ -1,13 +1,18 @@
 # Modernisation status
 
-This repository is a legacy Windows/MFC remote-administration codebase. Modernisation is being performed defensively: build/tooling, exploit mitigations, dependency health, code quality and security governance can be improved without extending the operational reach of the legacy remote-control protocol.
+The codebase is being moved to a 2026 Windows/MSVC baseline while preserving controlled compatibility with the existing Win32 build.
 
 ## Completed
 
-- Updated the solution metadata for Visual Studio 2022.
-- Added modern Visual Studio/MSBuild ignore rules.
-- Removed tracked IDE caches, resource-editor caches, build logs and user-specific project settings.
-- Added repository-wide MSBuild hardening defaults for current C/C++ projects:
+- Updated solution metadata for Visual Studio 2026.
+- Added automatic MSVC toolset selection: v145 on Visual Studio 2026, v143 as the Visual Studio 2022 compatibility fallback.
+- Enabled C++20, conformance mode and x64-hosted compiler tools repository-wide.
+- Targeted the newest installed supported Windows SDK through `WindowsTargetPlatformVersion=10.0`.
+- Added vcpkg manifest mode and moved the server project from the bundled zlib 1.1.4-era files to maintained `zlib` restored through vcpkg.
+- Removed the obsolete server-side `zlib.h`, `zconf.h` and `zlib.lib` copies.
+- Fixed the shared server/client buffer implementation so pointer subtraction is pointer-sized and buffer growth rejects arithmetic overflow.
+- Added modern Visual Studio/MSBuild ignore rules, including `vcpkg_installed/`.
+- Added repository-wide MSBuild hardening:
   - `/W4` warnings;
   - SDL checks;
   - `/GS` stack-buffer protection;
@@ -15,46 +20,37 @@ This repository is a legacy Windows/MFC remote-administration codebase. Modernis
   - ASLR-compatible linking;
   - DEP/NX-compatible linking;
   - `asInvoker` execution and UIAccess disabled.
-- Added a CodeQL C/C++ workflow for pushes, pull requests and scheduled analysis.
-- Added `SECURITY.md` with a modern threat/deployment baseline and vulnerability-reporting guidance.
-- Updated the README with build, mitigation-verification and security guidance.
+- Added Debug/Release Windows build CI.
+- Added CodeQL C/C++ analysis for pushes, pull requests and scheduled scans.
+- Added `SECURITY.md` and secure-redesign documentation.
+- Updated `README.md` for the 2026 development baseline.
 
-## Compatibility blockers still present
+## Remaining compatibility work
 
-### Dependency age
+### x64 output
 
-The tree vendors zlib 1.1.4-era headers/libraries. They should not be treated as a current dependency. Replacement should use a maintained zlib release and must be verified against the existing compressed data format before the historical files are removed.
+The compiler host now uses x64 tools, but the application output is still Win32. Additional pointer/integer assumptions and third-party/client build assumptions must be audited before adding an x64 output configuration.
 
-### 32-bit assumptions
+### Unicode
 
-The source contains pointer/integer conversions and Win32-only project configuration. Do not enable x64 until these are audited and corrected.
+The server project still uses the Multi-Byte character set. A global Unicode switch would currently break ANSI-specific casts and API assumptions. Convert call sites deliberately, then change the project character set once the source is clean.
 
-### Character encoding
+### Client project
 
-The server project uses the Multi-Byte character set. A Unicode conversion should be done separately because changing it globally can alter Windows API calls, resource handling and data formats.
+The client still contains Visual C++ 6-era project files and historical prebuilt artefacts. A current client build needs a new reviewed project definition rather than an automatic conversion of the old DSP/DSW files.
 
-### Legacy project files
+### Privileged command architecture
 
-The client still contains Visual C++ 6-era project files. They are retained because deleting them without a verified replacement would reduce reproducibility and auditability.
+The historical command set contains remote shell, screen-control, file-management, process/window-management, registry/service-management and audio/video functions. These paths predate current authentication, encrypted transport, authorisation, consent and audit requirements.
 
-### Legacy protocol security
+For current use, redesign privileged remote operations around a new security boundary rather than assuming the historical protocol is safe because the compiler and dependencies are current.
 
-The historical remote protocol has no verified modern mutual authentication, encrypted transport, role-based authorisation, explicit user consent or tamper-evident audit model.
+## Next migration order
 
-Compiler/linker mitigations reduce exploitability of some implementation defects; they do not solve protocol-level trust problems.
-
-## Security boundary
-
-The source includes remote screen control, shell access, file management, process/window management, registry/service management, audio/video capture and network-control components.
-
-Modernising those functions into a production-ready remote administration stack would require a new architecture with authenticated encrypted transport, operator/device identity, least privilege, explicit consent, signed updates, protected credentials, audit logging and abuse controls. That redesign should be treated as a separate security-engineering project rather than a superficial retrofit to the legacy command protocol.
-
-## Recommended next defensive work
-
-1. Establish a consistently green Visual Studio 2022 Win32 build under CodeQL/CI.
-2. Replace the obsolete zlib dependency and document the maintained version.
-3. Fix compiler warnings and memory/type-safety findings instead of suppressing them.
-4. Audit pointer-sized arithmetic and only then consider x64.
-5. Migrate text handling to Unicode as a separate tested change.
-6. Remove or redesign privileged legacy operations rather than carrying them forward unchanged.
-7. Design a new authentication/authorisation/consent boundary before considering any production remote-support use.
+1. Keep Debug and Release Win32 CI green on the maintained zlib/vcpkg dependency.
+2. Work through remaining compiler and CodeQL findings, prioritising memory ownership, bounds checks and pointer-sized types.
+3. Convert ANSI/Multi-Byte call sites to Unicode-safe Win32/MFC usage.
+4. Add x64 output only after pointer/integer assumptions are clean and CI can test both architectures.
+5. Replace the Visual C++ 6-era client project with a reviewed current build definition after removing historical prebuilt artefacts.
+6. Convert raw Win32 resource ownership to RAII where it reduces leak/use-after-free risk.
+7. Keep authentication, authorisation, consent, encrypted transport, session expiry and audit logging as explicit security boundaries for any future remote-support implementation.
