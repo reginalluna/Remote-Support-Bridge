@@ -8,6 +8,9 @@
 *.aps
 *.VC.db
 *.VC.VC.opendb
+*.ipch
+*.sdf
+*.opensdf
 
 # Build outputs
 Debug/
@@ -20,6 +23,8 @@ Win32/
 *.pdb
 *.ilk
 *.idb
+*.pch
+*.res
 *.tlog
 *.lastbuildstate
 *.log
@@ -33,3 +38,5 @@ Win32/
 # OS/editor noise
 .DS_Store
 Thumbs.db
+*.swp
+*.tmp
