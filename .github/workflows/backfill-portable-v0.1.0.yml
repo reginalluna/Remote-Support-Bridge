@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  statuses: write
 
 jobs:
   macos:
@@ -100,7 +101,7 @@ jobs:
           pattern: portable-*
           merge-multiple: true
           path: dist
-      - name: Add macOS and Linux files to v0.1.0
+      - name: Add and verify macOS and Linux files on v0.1.0
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -111,3 +112,12 @@ jobs:
             dist/Windows-Remote-Support-Linux-x86_64.AppImage \
             --clobber \
             --repo "${{ github.repository }}"
+
+          assets="$(gh release view v0.1.0 --repo "${{ github.repository }}" --json assets --jq '.assets[].name')"
+          grep -Fxq 'Windows-Remote-Support-macOS.dmg' <<< "$assets"
+          grep -Fxq 'Windows-Remote-Support-Linux-x86_64.AppImage' <<< "$assets"
+
+          gh api "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=success \
+            -f context='portable-v0.1.0-backfill' \
+            -f description='macOS DMG and Linux AppImage added to v0.1.0' >/dev/null
