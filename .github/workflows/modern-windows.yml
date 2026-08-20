@@ -1,0 +1,43 @@
+name: Modern Windows
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'modern/**'
+      - '.github/workflows/modern-windows.yml'
+  pull_request:
+    paths:
+      - 'modern/**'
+      - '.github/workflows/modern-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025-vs2026
+    strategy:
+      matrix:
+        architecture:
+          - name: x86
+            cmake: Win32
+          - name: x64
+            cmake: x64
+        configuration: [Debug, Release]
+
+    name: ${{ matrix.architecture.name }} ${{ matrix.configuration }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Configure native build
+        run: cmake -S modern -B build-modern -A ${{ matrix.architecture.cmake }}
+
+      - name: Build
+        run: cmake --build build-modern --config ${{ matrix.configuration }} --parallel
+
+      - name: Run security baseline self-test
+        shell: pwsh
+        run: '& ".\build-modern\${{ matrix.configuration }}\RemoteSupport.exe" --self-test'
