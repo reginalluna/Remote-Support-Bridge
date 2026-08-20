@@ -1,0 +1,113 @@
+name: Backfill portable v0.1.0 assets
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/backfill-portable-v0.1.0.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Build macOS app bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip pyinstaller
+          python portable/remote_support.py --self-test
+          python -m PyInstaller --clean --noconfirm --windowed --name 'Windows Remote Support' portable/remote_support.py
+          mkdir -p dmg-root
+          cp -R 'dist/Windows Remote Support.app' dmg-root/
+          hdiutil create -volname 'Windows Remote Support' -srcfolder dmg-root -ov -format UDZO Windows-Remote-Support-macOS.dmg
+      - uses: actions/upload-artifact@v6
+        with:
+          name: portable-macos
+          path: Windows-Remote-Support-macOS.dmg
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build Linux AppImage
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y python3-tk python3-venv curl
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip pyinstaller
+          .venv/bin/python portable/remote_support.py --self-test
+          .venv/bin/pyinstaller --clean --noconfirm --onefile --windowed --name WindowsRemoteSupport portable/remote_support.py
+
+          mkdir -p AppDir/usr/bin
+          cp dist/WindowsRemoteSupport AppDir/usr/bin/WindowsRemoteSupport
+          cat > AppDir/AppRun <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/bin/WindowsRemoteSupport" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+
+          cat > AppDir/windows-remote-support.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Windows Remote Support
+          Comment=Consent-first remote-support controller
+          Exec=WindowsRemoteSupport
+          Icon=windows-remote-support
+          Terminal=false
+          Categories=Network;Utility;
+          EOF
+
+          cat > AppDir/windows-remote-support.svg <<'EOF'
+          <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+            <rect width="256" height="256" rx="48" fill="#1f6feb"/>
+            <rect x="44" y="54" width="168" height="112" rx="12" fill="white"/>
+            <rect x="92" y="180" width="72" height="16" rx="8" fill="white"/>
+            <circle cx="128" cy="110" r="25" fill="#1f6feb"/>
+            <path d="M116 110l8 8 18-20" fill="none" stroke="white" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          EOF
+
+          curl -L --fail --retry 3 -o appimagetool-x86_64.AppImage \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool-x86_64.AppImage AppDir Windows-Remote-Support-Linux-x86_64.AppImage
+          chmod +x Windows-Remote-Support-Linux-x86_64.AppImage
+      - uses: actions/upload-artifact@v6
+        with:
+          name: portable-linux
+          path: Windows-Remote-Support-Linux-x86_64.AppImage
+          if-no-files-found: error
+
+  publish:
+    needs: [macos, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: portable-*
+          merge-multiple: true
+          path: dist
+      - name: Add macOS and Linux files to v0.1.0
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload v0.1.0 \
+            dist/Windows-Remote-Support-macOS.dmg \
+            dist/Windows-Remote-Support-Linux-x86_64.AppImage \
+            --clobber \
+            --repo "${{ github.repository }}"
