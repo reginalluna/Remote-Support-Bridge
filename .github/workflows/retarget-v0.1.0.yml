@@ -1,0 +1,31 @@
+name: Retarget v0.1.0 source tag
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/retarget-v0.1.0.yml'
+
+permissions:
+  contents: write
+  statuses: write
+
+jobs:
+  retarget:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Point v0.1.0 at the packaged source revision
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_SHA: f91ba01ae8b6b65e89e1bb679de29ac76a0efa3e
+        run: |
+          set -euo pipefail
+          gh api -X PATCH "repos/${{ github.repository }}/git/refs/tags/v0.1.0" \
+            -f sha="$TARGET_SHA" -F force=true >/dev/null
+          actual="$(gh api "repos/${{ github.repository }}/git/ref/tags/v0.1.0" --jq '.object.sha')"
+          test "$actual" = "$TARGET_SHA"
+          gh api "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=success \
+            -f context='v0.1.0-tag-retarget' \
+            -f description='v0.1.0 now points to portable release source' >/dev/null
