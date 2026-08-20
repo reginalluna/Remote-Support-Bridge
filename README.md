@@ -1,14 +1,16 @@
 # Windows Remote Support
 
-A Windows remote-support research project being redesigned around a modern **native x86/x64**, consent-first security model.
+A native **x86/x64 Windows remote-support application** built around explicit consent, auditing and Windows' authenticated Remote Desktop subsystem.
 
-The current application under [`modern/`](modern/) is a Windows desktop programme with an interactive UI for starting and ending explicitly consented local support sessions, viewing session state and opening the local audit log. The historical Windows/MFC implementation remains under `client/` and `server/` for academic comparison and migration analysis; the new application does **not** link to or activate that historical command protocol.
+The current application lives under [`modern/`](modern/). The historical Windows/MFC implementation remains under `client/` and `server/` for academic comparison and migration analysis; the new application does **not** link to or activate that historical command protocol.
 
 > Use the software only on systems you own or are explicitly authorised to administer or test.
 
 ## Current release
 
-Version **0.1.0** is the first desktop-UI preview of the redesigned application. Release builds are produced for:
+Version **0.2.0** adds a functional Windows Remote Desktop hand-off to the consent-first desktop application.
+
+Release builds are produced for:
 
 - **x86 / Win32** — native 32-bit Windows executable;
 - **x64** — native 64-bit Windows executable.
@@ -19,16 +21,30 @@ Both architectures are built from the same C++20 source and are continuously com
 
 When `RemoteSupport.exe` starts, the main window shows:
 
-- current session status;
+- current support-session status;
 - the architecture of the running build (`x86` or `x64`);
+- a **Remote computer name or IP address** field;
 - **Start consented session** — generates a cryptographically random session identifier and asks the local user for explicit approval;
-- **End session** — terminates the active local session and records the event;
+- **Connect with Windows RDP** — opens the built-in Windows Remote Desktop client for the entered computer after consent and audit checks succeed;
+- **End session** — terminates the application-side support session and records the event;
 - **Open audit log** — opens the local security-event log;
-- **About** — shows the architecture and current security-baseline information.
+- **About** — shows architecture and security information.
 
-A session is not activated unless the local user explicitly approves it. If an approved session cannot be recorded in the audit log, the application fails closed and does not continue the session.
+The RDP button stays disabled until a support session has been explicitly approved. The application validates the target value and records the Remote Desktop hand-off before launching `mstsc.exe`.
 
-The current preview intentionally has **no network listener, no administrator-elevation request, no hidden background session and no privileged remote-control actions**. Those capabilities are not inherited from the historical protocol.
+## Functional remote support
+
+The application now delegates the actual remote connection to **Windows Remote Desktop (RDP)** rather than implementing its own screen-capture, input-injection or background network service.
+
+When the target Windows computer is configured to accept Remote Desktop connections and is reachable under the target system's normal Windows network and security policy, Windows RDP provides:
+
+- the remote desktop display;
+- keyboard and mouse interaction;
+- Windows authentication and authorisation;
+- Windows-managed session encryption;
+- optional resource redirection according to the user's RDP settings and target policy.
+
+This means the application is functional for real two-computer remote sessions while retaining Windows' existing security boundary instead of adding a custom privileged remote-control protocol.
 
 ## Security baseline
 
@@ -37,11 +53,14 @@ The redesigned application currently provides:
 - native **x86 (Win32)** and **x64** output;
 - Unicode Windows APIs;
 - C++20;
-- visible user consent before session activation;
+- visible user consent before the RDP hand-off is enabled;
 - 128-bit random session identifiers from Windows CNG (`BCryptGenRandom`);
-- explicit session termination;
+- explicit application-side session termination;
 - local UTC audit records;
+- fail-closed behaviour when a security-relevant audit event cannot be written;
+- strict validation of the Remote Desktop target field;
 - no requested administrator elevation;
+- no custom network listener or hidden background control service;
 - `/W4`, SDL checks, `/GS`, Control Flow Guard, ASLR and DEP/NX on both architectures;
 - CET-compatible linking on x64;
 - automated Debug/Release builds and self-tests for x86 and x64;
@@ -57,7 +76,7 @@ Security-relevant session events are written to:
 %LOCALAPPDATA%\WindowsRemoteSupport\audit.log
 ```
 
-Each record contains a UTC timestamp, a random session identifier and an event name such as `consent_granted`, `consent_denied` or `session_ended`.
+Records include events such as `consent_granted`, `consent_denied`, `rdp_launch_requested`, `rdp_client_started`, `rdp_launch_failed` and `session_ended`.
 
 ## Build from source
 
@@ -117,28 +136,9 @@ Windows-Remote-Support-x86.zip
 Windows-Remote-Support-x64.zip
 ```
 
-The `.exe` files are the encapsulated single-file builds. The MSVC runtime is linked statically, so no separate Visual C++ redistributable files are packaged with them; they depend only on standard Windows system components used by the application.
+The `.exe` files are encapsulated single-file builds. The MSVC runtime is linked statically, so no separate Visual C++ redistributable files are packaged with them; they depend only on standard Windows system components used by the application.
 
-The initial preview is not code-signed; production distribution should add a trusted Windows code-signing certificate and signed update metadata.
-
-## Security architecture
-
-The redesign follows these rules:
-
-1. **Identity before capability** — operator and device identity must be established before support capabilities are enabled.
-2. **Encrypted transport only** — future network transport must use a maintained authenticated TLS implementation with certificate validation and replay-resistant sessions.
-3. **Consent by default** — sensitive capabilities require an explicit and visible local approval path.
-4. **Least privilege** — the programme runs as the signed-in user by default and does not request elevation merely to start.
-5. **Capability allow-listing** — support functions are individually authorised instead of exposing a general command channel.
-6. **Session expiry** — authentication and consent are scoped to bounded sessions rather than permanent trust grants.
-7. **Auditability** — security-relevant session events must be recorded and security failures fail closed.
-8. **Signed distribution** — production releases should use code signing and signed update metadata.
-
-## Next implementation milestones
-
-The next safe milestones for the new application are authenticated encrypted transport, device/operator identity, session expiry and replay protection, tamper-evident auditing, and then individually reviewed support capabilities behind authentication, authorisation and explicit consent.
-
-The historical remote shell, screen-control, file-management, registry/service, audio/video and related command paths are **not** automatically carried into the redesigned application.
+The preview is not code-signed; production distribution should add a trusted Windows code-signing certificate and signed update metadata.
 
 ## Repository layout
 
@@ -147,7 +147,7 @@ Windows-Remote-Support/
 ├── modern/
 │   ├── CMakeLists.txt
 │   └── RemoteSupport/
-│       └── main.cpp            # consent-first Windows desktop application
+│       └── main.cpp            # consent UI + audited Windows RDP hand-off
 ├── .github/workflows/
 │   ├── codeql.yml
 │   ├── modern-windows.yml      # x86/x64 Debug/Release builds + self-tests
@@ -167,6 +167,6 @@ The legacy `client/` and `server/` trees remain available for academic compariso
 
 ## Contributing
 
-Keep security-sensitive changes small and reviewable. Do not weaken authentication, consent, auditing or fail-closed behaviour to preserve compatibility with the historical protocol.
+Keep security-sensitive changes small and reviewable. Do not weaken consent, auditing or fail-closed behaviour to preserve compatibility with the historical protocol.
 
 Do not commit local build products, IDE caches, credentials, signing keys or generated secrets.
