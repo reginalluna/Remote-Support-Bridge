@@ -27,6 +27,7 @@ jobs:
         with:
           languages: c-cpp
           build-mode: manual
+          config-file: ./.github/codeql/codeql-config.yml
 
       - name: Build Win32 debug target
         shell: pwsh
