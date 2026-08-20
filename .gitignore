@@ -12,6 +12,9 @@
 *.sdf
 *.opensdf
 
+# vcpkg
+vcpkg_installed/
+
 # Build outputs
 Debug/
 Release/
