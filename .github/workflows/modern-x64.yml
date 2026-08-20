@@ -1,0 +1,36 @@
+name: Modern x64
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'modern/**'
+      - '.github/workflows/modern-x64.yml'
+  pull_request:
+    paths:
+      - 'modern/**'
+      - '.github/workflows/modern-x64.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025-vs2026
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Configure native x64 build
+        run: cmake -S modern -B build-modern -A x64
+
+      - name: Build
+        run: cmake --build build-modern --config ${{ matrix.configuration }} --parallel
+
+      - name: Run security baseline self-test
+        shell: pwsh
+        run: '& ".\build-modern\${{ matrix.configuration }}\RemoteSupport.exe" --self-test'
