@@ -67,7 +67,11 @@ For the server project, use a current Windows development machine with:
 - MFC/ATL support for the installed MSVC toolset;
 - a current Windows SDK installed through Visual Studio.
 
-The existing project remains configured for **Win32**. Do not switch it to x64 until the pointer/integer assumptions documented in `MODERNIZATION.md` have been audited.
+### 64-bit Windows PCs
+
+A standard **x64 Windows 10 or Windows 11 PC is supported as the host development and test machine**. The maintained application target is currently Win32, which runs on x64 Windows through the operating system's WoW64 compatibility layer. You therefore do not need a 32-bit PC to build or test the maintained target.
+
+Native x64 application output is not currently supported because the historical source still contains pointer/integer and ANSI assumptions that require a broader source-level redesign.
 
 ## Getting the source
 
