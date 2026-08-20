@@ -61,7 +61,7 @@ ULONG CBuffer::DeAllocateBuffer(ULONG ulLength)
 	if (GetBufferMaxLength() <= ulNewMaxLength)
 		return 0;
 
-	PBYTE NewBase = (PBYTE)VirtualAlloc(NULL, ulNewMaxLength, MEM_COMMIT, PAGE_READWRITE);
+	PBYTE NewBase = (PBYTE)VirtualAlloc(NULL, ulNewMaxLength, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (NewBase == NULL)
 		return 0;
 
@@ -111,7 +111,7 @@ ULONG CBuffer::ReAllocateBuffer(ULONG ulLength)
 		return (ULONG)-1;
 
 	const ULONG ulNewMaxLength = ((ulLength + U_PAGE_ALIGNMENT - 1) / U_PAGE_ALIGNMENT) * U_PAGE_ALIGNMENT;
-	PBYTE NewBase = (PBYTE)VirtualAlloc(NULL, ulNewMaxLength, MEM_COMMIT, PAGE_READWRITE);
+	PBYTE NewBase = (PBYTE)VirtualAlloc(NULL, ulNewMaxLength, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (NewBase == NULL)
 		return (ULONG)-1;
 
