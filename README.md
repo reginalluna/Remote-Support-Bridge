@@ -6,12 +6,11 @@ Windows/MFC remote-support codebase being updated for a 2026 Windows development
 
 ## 2026 development baseline
 
-The repository now targets the current Microsoft C++ toolchain generation while retaining a compatibility fallback for CI:
+The repository now targets the current Microsoft C++ toolchain generation:
 
-- **Visual Studio 2026 18.8.2 or newer** is the preferred IDE;
-- **MSVC v145 / 14.51 or newer** is preferred when Visual Studio 2026 is available;
-- **MSVC v143** remains an automatic fallback for Visual Studio 2022-based CI environments;
-- **Windows 11 SDK 10.0.28000.2526 or newer supported SDK** is recommended;
+- **Visual Studio 2026 18.8.2 or newer** is the supported IDE baseline;
+- **MSVC v145 / 14.51 or newer** is required;
+- **Windows 11 SDK 10.0.28000.2526** is pinned for reproducible builds;
 - **C++20** language mode and MSVC conformance mode are enabled repository-wide;
 - the compiler host architecture is set to **x64**;
 - dependencies are managed with **vcpkg manifest mode**;
@@ -30,14 +29,17 @@ MSBuild C/C++ projects inherit the defensive defaults in [`Directory.Build.targe
 - ASLR-compatible linking;
 - DEP/NX-compatible linking;
 - `asInvoker` execution;
-- UIAccess disabled.
+- UIAccess disabled;
+- CFG-compatible Program Database debug information.
 
 The buffer implementation has also been updated to avoid 32-bit pointer truncation and to reject arithmetic overflow when expanding receive/send buffers.
 
 Automated checks are provided by:
 
 - [`.github/workflows/build.yml`](.github/workflows/build.yml) — Debug and Release Windows builds;
-- [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml) — C/C++ CodeQL analysis using the repository security query configuration.
+- [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml) — C/C++ CodeQL v4 analysis using the repository security query configuration.
+
+Both workflows use `actions/checkout@v7` and locate MSBuild through `vswhere` on current Visual Studio 2026 GitHub-hosted Windows runners.
 
 ## Project layout
 
@@ -54,7 +56,7 @@ Remote/
 ├── server/
 │   ├── 2015Remote.sln         # Visual Studio 2026 solution metadata
 │   └── 2015Remote/            # MFC controller application
-├── Directory.Build.props      # toolchain, C++20 and vcpkg defaults
+├── Directory.Build.props      # v145, SDK, C++20 and vcpkg defaults
 ├── Directory.Build.targets    # compiler/linker hardening
 ├── vcpkg.json                 # maintained third-party dependencies
 ├── MODERNIZATION.md
@@ -66,13 +68,11 @@ Remote/
 
 Install on a supported 64-bit Windows system:
 
-1. Visual Studio 2026 with **Desktop development with C++**.
-2. MFC/ATL support for the installed MSVC toolset.
-3. A supported Windows 11 SDK; the July 2026 `10.0.28000.2526` SDK or later is recommended.
+1. Visual Studio 2026 18.8.2 or newer with **Desktop development with C++**.
+2. MSVC v145 and MFC/ATL support.
+3. Windows 11 SDK `10.0.28000.2526`.
 4. Git.
 5. vcpkg integration for MSBuild.
-
-Visual Studio 2022 can still be used as a compatibility fallback if the v143 toolset is installed.
 
 ## Clone the repository
 
@@ -99,9 +99,9 @@ Open:
 server/2015Remote.sln
 ```
 
-Prefer Visual Studio 2026. Select **Debug | Win32** for the first build, then test **Release | Win32**.
+Select **Debug | Win32** for the first build, then test **Release | Win32**.
 
-Command-line builds from a Developer PowerShell:
+Command-line builds from a Visual Studio 2026 Developer PowerShell:
 
 ```powershell
 msbuild server\2015Remote.sln /m /p:Configuration=Debug /p:Platform=Win32
@@ -123,16 +123,17 @@ Confirm the produced image reports the expected modern mitigation characteristic
 Completed or in place:
 
 - Visual Studio 2026 solution metadata;
-- automatic v145/v143 toolset selection;
-- current supported Windows SDK selection through `10.0` MSBuild targeting;
+- MSVC v145 baseline;
+- pinned Windows 11 SDK `10.0.28000.2526`;
 - C++20 and conformance mode;
 - x64-hosted compiler tools;
 - maintained zlib dependency for the MSBuild server project through vcpkg;
 - removal of the obsolete server-side vendored zlib binary/header set;
 - checked buffer arithmetic and pointer-safe buffer-length calculation;
 - compiler/linker exploit mitigations;
-- reproducible Debug/Release CI build jobs;
-- CodeQL security analysis;
+- Debug/Release CI build jobs on the current Windows/Visual Studio runner generation;
+- CodeQL v4 security analysis;
+- current GitHub checkout action;
 - security and redesign documentation.
 
 Still requiring source-level migration:
