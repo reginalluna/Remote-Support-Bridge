@@ -1,60 +1,47 @@
 # Modernisation status
 
-This repository is a legacy Windows/MFC remote-administration codebase. Modernisation is being performed defensively: build/tooling, exploit mitigations, dependency health, code quality and security governance can be improved without extending the operational reach of the legacy remote-control protocol.
+Remote Support Bridge is the maintained cross-platform controller in this repository. The current application is separate from the historical Windows/MFC command implementation and delegates remote sessions to established RDP, SSH/SFTP and VNC clients.
+
+The historical `client/` and `server/` trees remain available for comparison, compatibility study and defensive review; they are not part of the supported controller build.
 
 ## Completed
 
-- Updated the solution metadata for Visual Studio 2022.
-- Added modern Visual Studio/MSBuild ignore rules.
-- Removed tracked IDE caches, resource-editor caches, build logs and user-specific project settings.
-- Added repository-wide MSBuild hardening defaults for current C/C++ projects:
-  - `/W4` warnings;
-  - SDL checks;
-  - `/GS` stack-buffer protection;
-  - Control Flow Guard;
-  - ASLR-compatible linking;
-  - DEP/NX-compatible linking;
-  - `asInvoker` execution and UIAccess disabled.
-- Added a CodeQL C/C++ workflow for pushes, pull requests and scheduled analysis.
-- Added `SECURITY.md` with a modern threat/deployment baseline and vulnerability-reporting guidance.
-- Updated the README with build, mitigation-verification and security guidance.
+- Added native Windows x86 and x64 C++20 controller builds under `modern/`.
+- Added packaged macOS and Ubuntu/Linux controller builds under `portable/`.
+- Added explicit local consent before a support session can begin.
+- Added random session identifiers and UTC audit logging.
+- Added target validation and fail-closed audit checks before protocol hand-offs.
+- Added RDP, SSH, SFTP and VNC hand-offs through installed operating-system clients.
+- Added Windows compiler/linker hardening including `/W4`, SDL checks, `/GS`, Control Flow Guard, ASLR, DEP/NX and x64 CET-compatible linking.
+- Added CodeQL analysis, Windows build/self-test CI and release packaging.
+- Added encapsulated Windows EXE, macOS DMG and Linux AppImage release artefacts.
+- Kept the historical privileged command protocol outside the maintained application.
 
-## Compatibility blockers still present
+## Current architecture
 
-### Dependency age
+### Native Windows controller
 
-The tree vendors zlib 1.1.4-era headers/libraries. They should not be treated as a current dependency. Replacement should use a maintained zlib release and must be verified against the existing compressed data format before the historical files are removed.
+`modern/` contains the Windows C++20 application. It builds for Win32/x86 and x64 and uses Windows-native security and UI APIs.
 
-### 32-bit assumptions
+### Portable macOS/Linux controller
 
-The source contains pointer/integer conversions and Win32-only project configuration. Do not enable x64 until these are audited and corrected.
+`portable/remote_support.py` provides the macOS and Linux controller UI. Release builds package the runtime so destination computers do not need a separate Python installation.
 
-### Character encoding
+### Remote-access hand-offs
 
-The server project uses the Multi-Byte character set. A Unicode conversion should be done separately because changing it globally can alter Windows API calls, resource handling and data formats.
+Remote Support Bridge does not implement a new background control service. It validates and audits the target, then opens an established local RDP, SSH/SFTP or VNC client. Authentication and encryption are therefore provided by the selected protocol implementation.
 
-### Legacy project files
+## Historical compatibility notes
 
-The client still contains Visual C++ 6-era project files. They are retained because deleting them without a verified replacement would reduce reproducibility and auditability.
+The retained Windows/MFC source contains old project formats, Win32 assumptions, Multi-Byte text handling and obsolete dependencies. These constraints apply to the historical reference trees, not to the supported Remote Support Bridge controller.
 
-### Legacy protocol security
+The historical protocol also predates current expectations for mutual authentication, encrypted transport, explicit consent, role-based authorisation and tamper-evident auditing. It should not be treated as the basis of the maintained application.
 
-The historical remote protocol has no verified modern mutual authentication, encrypted transport, role-based authorisation, explicit user consent or tamper-evident audit model.
+## Current priorities
 
-Compiler/linker mitigations reduce exploitability of some implementation defects; they do not solve protocol-level trust problems.
-
-## Security boundary
-
-The source includes remote screen control, shell access, file management, process/window management, registry/service management, audio/video capture and network-control components.
-
-Modernising those functions into a production-ready remote administration stack would require a new architecture with authenticated encrypted transport, operator/device identity, least privilege, explicit consent, signed updates, protected credentials, audit logging and abuse controls. That redesign should be treated as a separate security-engineering project rather than a superficial retrofit to the legacy command protocol.
-
-## Recommended next defensive work
-
-1. Establish a consistently green Visual Studio 2022 Win32 build under CodeQL/CI.
-2. Replace the obsolete zlib dependency and document the maintained version.
-3. Fix compiler warnings and memory/type-safety findings instead of suppressing them.
-4. Audit pointer-sized arithmetic and only then consider x64.
-5. Migrate text handling to Unicode as a separate tested change.
-6. Remove or redesign privileged legacy operations rather than carrying them forward unchanged.
-7. Design a new authentication/authorisation/consent boundary before considering any production remote-support use.
+1. Keep Windows, macOS and Linux packaging reproducible and self-tested.
+2. Add trusted code signing/notarisation for public distribution.
+3. Keep dependency and CodeQL checks current.
+4. Improve platform-specific protocol-handler detection and user-facing error reporting.
+5. Maintain a clear separation between the supported controller and historical reference code.
+6. Extend security documentation whenever a new user-visible capability is added.
