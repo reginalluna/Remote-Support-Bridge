@@ -1,13 +1,13 @@
 # Modernisation status
 
-The codebase is being moved to a 2026 Windows/MSVC baseline while preserving controlled compatibility with the existing Win32 build.
+The codebase is being moved to a 2026 Windows/MSVC baseline while preserving controlled compatibility with the existing Win32 application output.
 
 ## Completed
 
 - Updated solution metadata for Visual Studio 2026.
-- Added automatic MSVC toolset selection: v145 on Visual Studio 2026, v143 as the Visual Studio 2022 compatibility fallback.
+- Pinned the supported compiler toolset to MSVC `v145`.
+- Pinned the Windows 11 SDK to `10.0.28000.2526`.
 - Enabled C++20, conformance mode and x64-hosted compiler tools repository-wide.
-- Targeted the newest installed supported Windows SDK through `WindowsTargetPlatformVersion=10.0`.
 - Added vcpkg manifest mode and moved the server project from the bundled zlib 1.1.4-era files to maintained `zlib` restored through vcpkg.
 - Removed the obsolete server-side `zlib.h`, `zconf.h` and `zlib.lib` copies.
 - Fixed the shared server/client buffer implementation so pointer subtraction is pointer-sized and buffer growth rejects arithmetic overflow.
@@ -19,11 +19,12 @@ The codebase is being moved to a 2026 Windows/MSVC baseline while preserving con
   - Control Flow Guard;
   - ASLR-compatible linking;
   - DEP/NX-compatible linking;
-  - `asInvoker` execution and UIAccess disabled.
-- Added Debug/Release Windows build CI.
-- Added CodeQL C/C++ analysis for pushes, pull requests and scheduled scans.
+  - `asInvoker` execution and UIAccess disabled;
+  - CFG-compatible Program Database debug information.
+- Added Debug/Release Windows build CI using `actions/checkout@v7` and Visual Studio discovery through `vswhere`.
+- Added CodeQL C/C++ v4 analysis for pushes, pull requests and scheduled scans.
 - Added `SECURITY.md` and secure-redesign documentation.
-- Updated `README.md` for the 2026 development baseline.
+- Updated `README.md` for the current August 2026 development baseline.
 
 ## Remaining compatibility work
 
