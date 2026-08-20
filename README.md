@@ -8,7 +8,7 @@ Windows/MFC remote-support codebase being updated for a 2026 Windows development
 
 The repository now targets the current Microsoft C++ toolchain generation while retaining a compatibility fallback for CI:
 
-- **Visual Studio 2026 18.6 or newer** is the preferred IDE;
+- **Visual Studio 2026 18.8.2 or newer** is the preferred IDE;
 - **MSVC v145 / 14.51 or newer** is preferred when Visual Studio 2026 is available;
 - **MSVC v143** remains an automatic fallback for Visual Studio 2022-based CI environments;
 - **Windows 11 SDK 10.0.28000.2526 or newer supported SDK** is recommended;
