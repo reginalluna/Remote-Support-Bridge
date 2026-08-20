@@ -22,6 +22,12 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Enable vcpkg MSBuild integration
+        shell: pwsh
+        run: |
+          if (-not $env:VCPKG_INSTALLATION_ROOT) { throw 'vcpkg is not available on this runner' }
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" integrate install
+
       - name: Initialise CodeQL
         uses: github/codeql-action/init@v3
         with:
