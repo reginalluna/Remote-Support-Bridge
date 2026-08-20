@@ -108,12 +108,16 @@ A successful self-test exits with code `0`.
 
 ## Release artefacts
 
-The release pipeline builds both Release targets and publishes:
+The release pipeline builds both Release targets and publishes standalone executables as well as ZIP archives:
 
 ```text
+Windows-Remote-Support-x86.exe
+Windows-Remote-Support-x64.exe
 Windows-Remote-Support-x86.zip
 Windows-Remote-Support-x64.zip
 ```
+
+The `.exe` files are the encapsulated single-file builds. The MSVC runtime is linked statically, so no separate Visual C++ redistributable files are packaged with them; they depend only on standard Windows system components used by the application.
 
 The initial preview is not code-signed; production distribution should add a trusted Windows code-signing certificate and signed update metadata.
 
@@ -147,7 +151,7 @@ Windows-Remote-Support/
 ├── .github/workflows/
 │   ├── codeql.yml
 │   ├── modern-windows.yml      # x86/x64 Debug/Release builds + self-tests
-│   └── release.yml             # x86/x64 release packaging
+│   └── release.yml             # standalone EXEs + ZIP release packaging
 ├── client/                     # historical client source
 ├── server/                     # historical MFC controller source
 ├── docs/SECURE_REDESIGN.md
