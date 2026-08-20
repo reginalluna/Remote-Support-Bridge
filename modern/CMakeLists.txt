@@ -6,10 +6,6 @@ if(NOT WIN32)
     message(FATAL_ERROR "RemoteSupport currently targets Windows only.")
 endif()
 
-if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(FATAL_ERROR "Configure the redesign with a native x64 generator, for example: cmake -S modern -B build-modern -A x64")
-endif()
-
 add_executable(RemoteSupport WIN32
     RemoteSupport/main.cpp
 )
@@ -41,6 +37,9 @@ if(MSVC)
         /DYNAMICBASE
         /NXCOMPAT
         /guard:cf
-        /CETCOMPAT
     )
+
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        target_link_options(RemoteSupport PRIVATE /CETCOMPAT)
+    endif()
 endif()
