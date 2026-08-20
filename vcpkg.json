@@ -1,0 +1,7 @@
+{
+  "name": "remote-modernisation",
+  "version-string": "2026.08",
+  "dependencies": [
+    "zlib"
+  ]
+}
