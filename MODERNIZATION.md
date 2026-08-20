@@ -6,7 +6,7 @@ The codebase is being moved to a 2026 Windows/MSVC baseline while preserving con
 
 - Updated solution metadata for Visual Studio 2026.
 - Pinned the supported compiler toolset to MSVC `v145`.
-- Pinned the Windows 11 SDK to `10.0.28000.2526`.
+- Configured MSBuild to use the newest installed supported Windows SDK (`WindowsTargetPlatformVersion=10.0`), with Windows 11 SDK `10.0.28000.2526` recommended for the current 2026 environment.
 - Enabled C++20, conformance mode and x64-hosted compiler tools repository-wide.
 - Added vcpkg manifest mode and moved the server project from the bundled zlib 1.1.4-era files to maintained `zlib` restored through vcpkg.
 - Removed the obsolete server-side `zlib.h`, `zconf.h` and `zlib.lib` copies.
@@ -20,7 +20,8 @@ The codebase is being moved to a 2026 Windows/MSVC baseline while preserving con
   - ASLR-compatible linking;
   - DEP/NX-compatible linking;
   - `asInvoker` execution and UIAccess disabled;
-  - CFG-compatible Program Database debug information.
+  - CFG-compatible Program Database debug information;
+  - secure CRT C++ overloads for fixed-size legacy buffers rather than disabling secure-CRT diagnostics.
 - Added Debug/Release Windows build CI using `actions/checkout@v7` and Visual Studio discovery through `vswhere`.
 - Added CodeQL C/C++ v4 analysis for pushes, pull requests and scheduled scans.
 - Added `SECURITY.md` and secure-redesign documentation.
