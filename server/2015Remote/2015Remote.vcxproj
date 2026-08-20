@@ -149,7 +149,9 @@
     <ClCompile Include="CpuUseage.cpp" />
     <ClCompile Include="EditDialog.cpp" />
     <ClCompile Include="FileCompress.cpp" />
-    <ClCompile Include="FileManagerDlg.cpp" />
+    <ClCompile Include="FileManagerDlg.cpp">
+      <DisableSpecificWarnings>4996;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
     <ClCompile Include="FileTransferModeDlg.cpp" />
     <ClCompile Include="iniFile.cpp" />
     <ClCompile Include="IOCPServer.cpp" />
