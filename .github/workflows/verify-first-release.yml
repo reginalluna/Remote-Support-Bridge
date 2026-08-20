@@ -1,0 +1,39 @@
+name: Verify first public release
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/verify-first-release.yml'
+
+permissions:
+  contents: read
+  statuses: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify v0.1.0 release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          assets="$(gh release view v0.1.0 --repo "${{ github.repository }}" --json assets --jq '.assets[].name')"
+          for name in \
+            Windows-Remote-Support-x86.exe \
+            Windows-Remote-Support-x64.exe \
+            Windows-Remote-Support-x86.zip \
+            Windows-Remote-Support-x64.zip; do
+            grep -Fxq "$name" <<< "$assets"
+          done
+
+          releases="$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName --jq '.[].tagName')"
+          test "$releases" = 'v0.1.0'
+
+          gh api "repos/${{ github.repository }}/statuses/${{ github.sha }}" \
+            -f state=success \
+            -f context='first-release-verification' \
+            -f description='v0.1.0 is the only release and contains x86/x64 EXE and ZIP assets' >/dev/null
