@@ -37,11 +37,17 @@ jobs:
           if (-not $msbuild) { throw 'MSBuild was not found' }
           & $msbuild server/2015Remote.sln /m /p:Configuration=Debug /p:Platform=Win32
 
+      - name: Configure modern native x86 target
+        run: cmake -S modern -B build-modern-codeql-x86 -A Win32
+
+      - name: Build modern native x86 target
+        run: cmake --build build-modern-codeql-x86 --config Debug --parallel
+
       - name: Configure modern native x64 target
-        run: cmake -S modern -B build-modern-codeql -A x64
+        run: cmake -S modern -B build-modern-codeql-x64 -A x64
 
       - name: Build modern native x64 target
-        run: cmake --build build-modern-codeql --config Debug --parallel
+        run: cmake --build build-modern-codeql-x64 --config Debug --parallel
 
       - name: Analyse
         uses: github/codeql-action/analyze@v4
