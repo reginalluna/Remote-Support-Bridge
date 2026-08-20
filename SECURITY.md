@@ -1,63 +1,56 @@
 # Security policy
 
-## Project status
+## Supported application
 
-This repository contains a legacy Windows/MFC remote-administration codebase. It includes functionality for remote shell access, screen control, file management, process/window management, registry/service management, audio/video capture and network communication.
+Remote Support Bridge is the maintained application in this repository. Supported controller code lives in:
 
-The code predates current security expectations and must **not** be treated as a production-ready remote-support product.
+- `modern/` for native Windows x86/x64 builds;
+- `portable/` for packaged macOS and Ubuntu/Linux builds.
 
-## Supported security posture
+The historical Windows/MFC material under `client/` and `server/` is retained for comparison and defensive analysis. It is not part of the supported controller and should not be deployed as a production remote-support service.
 
-The supported posture of the current repository is:
+## Security model
 
-- source review and maintenance;
-- controlled compatibility work;
-- defensive static analysis;
-- isolated laboratory testing on systems you own or are explicitly authorised to test;
-- least-privilege local execution;
-- no direct exposure of the legacy protocol to the public Internet.
+Remote Support Bridge requires visible local consent before enabling connection hand-offs. It generates a random session identifier, validates the requested target, records security-relevant events and does not store remote passwords.
 
-The repository now applies MSVC hardening defaults to MSBuild-based C/C++ projects, including higher warning levels, SDL checks, stack-buffer protection, Control Flow Guard, ASLR, DEP and `asInvoker` execution.
+The controller does not embed a custom privileged remote-control listener. Instead, it opens established RDP, SSH/SFTP or VNC clients available on the local operating system. Authentication, encryption and remote-side authorisation are provided by those protocol implementations and their configuration.
 
-These mitigations reduce exploitability of memory-safety defects but do **not** make the legacy protocol secure.
+Supported security practices include:
 
-## Production security requirements
+- explicit local session approval;
+- least-privilege execution;
+- UTC audit logging;
+- fail-closed behaviour when an approved hand-off cannot be audited;
+- validated host/IP input;
+- no stored remote credentials;
+- current CI and CodeQL checks;
+- Windows exploit mitigations such as `/GS`, Control Flow Guard, ASLR and DEP/NX.
 
-A genuinely modern remote-support product built from this historical code would require an architectural redesign before deployment. At minimum it would need:
+## Platform packaging
 
-- mutually authenticated encrypted transport using a maintained TLS implementation;
-- strong device and operator identity;
-- explicit authorisation and role-based access control;
-- visible end-user consent for sensitive operations;
-- least-privilege service design and privilege separation;
-- cryptographically signed updates and binaries;
-- protected credential storage;
-- replay protection and session expiry;
-- tamper-evident security logging and audit trails;
-- secure defaults with dangerous functions disabled unless explicitly authorised;
-- rate limiting, connection limits and abuse controls;
-- dependency inventory and automated vulnerability scanning;
-- reproducible builds and CI security checks;
-- documented incident-response and key-rotation procedures.
+The first public release provides native Windows executables, macOS DMGs and a Linux x86_64 AppImage. The initial release is not signed with a production Windows certificate or Apple Developer ID. Users should obtain release files only from this repository and verify their source before execution.
 
-Do not retrofit these controls superficially around the existing unauthenticated command protocol and assume that the result is secure.
+Production distribution should add:
 
-## Dependency risk
+- Windows Authenticode signing;
+- Apple Developer ID signing and notarisation;
+- signed update metadata if automatic updates are introduced;
+- reproducible release provenance and dependency inventory.
 
-The repository still contains an obsolete zlib 1.1.4-era dependency. Treat it as technical debt that must be replaced with a currently maintained release before any production consideration. Replacement must be verified against the existing compression/data format before removing the historical files.
+## Historical source boundary
 
-## 32-bit and Unicode limitations
+The retained legacy source contains remote shell, screen control, file management, process/window management, registry/service management, audio/video capture and network-control functionality. It also contains obsolete dependencies and historical trust assumptions.
 
-The codebase still contains Win32 assumptions and Multi-Byte text handling. Do not enable x64 or global Unicode conversion blindly; both require source-level auditing and regression testing.
+Changes to the maintained application must not silently activate or link the historical command protocol. Any migration work should preserve a clear architectural separation and require explicit review of identity, consent, authorisation and audit behaviour.
 
 ## Vulnerability reporting
 
-If you find a vulnerability, avoid publishing working exploitation details, credentials, live targets or weaponised proof-of-concept material in a public issue.
+Do not publish credentials, live targets, weaponised proof-of-concept material or sensitive exploitation details in a public issue.
 
-Use GitHub private vulnerability reporting/security advisories if enabled for this repository. If private reporting is unavailable, open a minimal issue stating that you have a security concern and request a private contact channel without including exploit details.
+Use GitHub private vulnerability reporting/security advisories when available. If private reporting is unavailable, open a minimal issue stating that you have a security concern and request a private contact channel without including exploitation details.
 
 ## Security review boundary
 
-Changes that improve defensive build hardening, memory safety, dependency health, authentication design, consent, logging, least privilege or vulnerability detection are welcome.
+Changes that improve consent, authentication design, auditability, dependency health, memory safety, build hardening, least privilege or vulnerability detection are welcome.
 
-Changes whose primary effect is to make the legacy remote-control capabilities more deployable, stealthy, persistent, scalable or easier to operate against third-party systems are outside the supported modernisation scope.
+Changes whose primary effect would be to make the historical privileged command implementation more stealthy, persistent, scalable or easier to deploy against third-party systems are outside the supported project scope.
