@@ -1,183 +1,136 @@
 # Remote
 
-Legacy Windows/MFC remote-administration codebase preserved for maintenance, documentation and defensive modernisation.
+A Windows remote-support research project being redesigned around a modern **native x64**, consent-first security model.
 
-> **Important:** this repository contains historical remote shell, screen-control, file-management, process/window-management, registry/service-management, audio/video and networking functionality. The original protocol predates modern authentication, encryption, consent and audit requirements. Use the code only on systems you own or are explicitly authorised to test, and do not expose the legacy protocol directly to the public Internet.
+The repository still contains the historical Windows/MFC implementation under `client/` and `server/` for reference and migration work. The new implementation lives under [`modern/`](modern/) and does **not** link to or activate the historical remote-command protocol.
 
-## Current status
+> Use the software only on systems you own or are explicitly authorised to administer or test.
 
-The repository has now received a broader defensive modernisation pass covering repository hygiene, Visual Studio 2022 solution metadata, compiler/linker exploit mitigations, security policy documentation and automated CodeQL analysis.
+## Native x64 redesign
 
-The application code itself is still largely legacy code. It is **not** a production-ready remote-support product.
+The new `RemoteSupport` application is a clean x64 baseline for current Windows PCs. It uses:
 
-Known limitations still include:
+- native **x64** output;
+- Unicode Windows APIs;
+- C++20;
+- explicit visible consent before a session can initialise;
+- cryptographically secure 128-bit session identifiers from Windows CNG (`BCryptGenRandom`);
+- local audit records under `%LOCALAPPDATA%\RemoteSupport\audit.log`;
+- no requested administrator elevation;
+- `/W4`, SDL checks, `/GS`, Control Flow Guard, ASLR, DEP/NX and CET-compatible linking;
+- an automated Debug/Release x64 build and self-test in GitHub Actions.
 
-- Win32-only project configuration;
-- Multi-Byte rather than Unicode text handling;
-- 32-bit pointer/integer assumptions in parts of the source;
-- bundled zlib 1.1.4-era files and libraries;
-- Visual C++ 6-era project material in the client tree;
-- no verified modern mutual authentication, encrypted transport, role-based authorisation, consent UI or tamper-evident session audit model for the legacy remote protocol.
+The modern binary deliberately starts with **no privileged remote-control actions and no network listener**. Authentication, encrypted transport and individual support capabilities are added only behind the new security boundary rather than inherited from the legacy protocol.
 
-See [`MODERNIZATION.md`](MODERNIZATION.md) for compatibility notes and [`SECURITY.md`](SECURITY.md) for the current security policy and production-security requirements.
+## Build the modern x64 application
 
-## Defensive hardening now applied
+### Requirements
 
-MSBuild-based C/C++ projects inherit hardening from [`Directory.Build.targets`](Directory.Build.targets):
+Use a 64-bit Windows 11 or supported Windows 10 development machine with:
 
-- `/W4` warning level;
-- SDL security checks;
-- `/GS` stack-buffer protection;
-- Control Flow Guard for compiler and linker output;
-- ASLR-compatible linking;
-- DEP/NX-compatible linking;
-- `asInvoker` execution to avoid requesting elevation by default;
-- UIAccess disabled.
+- Visual Studio 2026 with **Desktop development with C++**;
+- a current Windows SDK;
+- CMake 3.30 or newer;
+- Git.
 
-These mitigations reduce exploitability of some memory-corruption defects. They do **not** make the legacy command protocol safe for production use.
-
-The repository also includes a scheduled and pull-request-triggered CodeQL workflow at [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml).
-
-## Project layout
-
-```text
-Remote/
-├── .github/
-│   └── workflows/
-│       └── codeql.yml
-├── client/
-│   ├── ClientDll/             # legacy client-side implementation
-│   └── ClientExe/             # legacy client executable project/resources
-├── server/
-│   ├── 2015Remote.sln         # server solution with VS 2022 metadata
-│   └── 2015Remote/            # MFC server application
-├── Directory.Build.targets    # defensive MSVC hardening defaults
-├── MODERNIZATION.md
-├── SECURITY.md
-└── README.md
-```
-
-## Requirements
-
-For the server project, use a current Windows development machine with:
-
-- Windows 10 or Windows 11;
-- Visual Studio 2022;
-- the **Desktop development with C++** workload;
-- MFC/ATL support for the installed MSVC toolset;
-- a current Windows SDK installed through Visual Studio.
-
-### 64-bit Windows PCs
-
-A standard **x64 Windows 10 or Windows 11 PC is supported as the host development and test machine**. The maintained application target is currently Win32, which runs on x64 Windows through the operating system's WoW64 compatibility layer. You therefore do not need a 32-bit PC to build or test the maintained target.
-
-Native x64 application output is not currently supported because the historical source still contains pointer/integer and ANSI assumptions that require a broader source-level redesign.
-
-## Getting the source
+Clone the repository:
 
 ```powershell
 git clone https://github.com/reginalluna/Remote.git
 cd Remote
 ```
 
-## Opening the server project
-
-Open:
-
-```text
-server/2015Remote.sln
-```
-
-in Visual Studio 2022.
-
-If Visual Studio offers to retarget the project to an installed Windows SDK/toolset, review the proposed changes before accepting them. The solution metadata and defensive build defaults are modernised, but the source still contains legacy assumptions.
-
-## Building for maintenance and defensive testing
-
-1. Select **Win32** as the platform.
-2. Start with the **Debug** configuration.
-3. Build with **Build → Build Solution**.
-4. Treat warnings as migration findings rather than suppressing them globally.
-5. Run only in an isolated test environment or on explicitly authorised systems.
-
-Command-line equivalent from a Visual Studio Developer PowerShell is:
+Configure a native x64 build:
 
 ```powershell
-msbuild server\2015Remote.sln /m /p:Configuration=Debug /p:Platform=Win32
+cmake -S modern -B build-modern -A x64
 ```
 
-A clean build on every current Visual Studio installation is **not yet guaranteed**, primarily because the repository still carries an obsolete zlib dependency and historical project assumptions.
+Build Release:
 
-## Verifying Windows exploit mitigations
+```powershell
+cmake --build build-modern --config Release --parallel
+```
 
-After a successful build, inspect the executable headers from a Visual Studio Developer Command Prompt:
+Run:
+
+```powershell
+.\build-modern\Release\RemoteSupport.exe
+```
+
+The application displays a visible consent prompt, creates a random session identifier, and records the consent decision locally.
+
+Run the non-interactive security-baseline self-test:
+
+```powershell
+.\build-modern\Release\RemoteSupport.exe --self-test
+```
+
+A successful self-test exits with code `0`.
+
+## Audit log
+
+The redesign records session-consent events at:
 
 ```text
-dumpbin /headers path\to\2015Remote.exe
+%LOCALAPPDATA%\RemoteSupport\audit.log
 ```
 
-Check that the resulting image reports modern mitigation characteristics such as dynamic-base/ASLR, NX compatibility and Guard/CFG information. The exact text varies by linker version.
+Each record contains a UTC timestamp, random session identifier and event name. If the audit record cannot be written after consent is granted, the session does not continue.
 
-## Client source
+## Security architecture
 
-The client tree contains Visual C++ 6-era project material and pre-existing legacy source. Those files are retained for reproducibility, audit and historical review.
+The redesign follows these rules:
 
-There is currently no supported modern production client build procedure. Migrating the client safely requires a separate source-level review rather than accepting an automatic toolchain conversion wholesale.
+1. **Identity before capability** — operators and devices must be authenticated before any support action is offered.
+2. **Encrypted transport only** — future network transport must use a maintained authenticated TLS implementation with certificate validation and replay-resistant sessions.
+3. **Consent by default** — sensitive capabilities require an explicit, visible local approval path.
+4. **Least privilege** — the application runs as the signed-in user by default and does not request elevation merely to start.
+5. **Capability allow-listing** — future support functions are individually authorised rather than exposing a general command channel.
+6. **Session expiry** — authentication and consent are scoped to a bounded session and are not permanent trust grants.
+7. **Auditability** — security-relevant session events must be recorded and failures must fail closed.
+8. **Signed distribution** — production releases should use code signing and signed update metadata before deployment.
 
-## Supported use of the repository today
+See [`docs/SECURE_REDESIGN.md`](docs/SECURE_REDESIGN.md) and [`SECURITY.md`](SECURITY.md) for the wider security requirements.
 
-The supported use is **maintenance, code review, compatibility work, defensive analysis and controlled laboratory testing**:
+## Next implementation milestones
 
-1. clone the repository;
-2. open the server solution in Visual Studio 2022;
-3. build/debug the Win32 project in an isolated environment;
-4. review compiler and CodeQL findings;
-5. replace obsolete dependencies and unsafe legacy assumptions in small pull requests;
-6. verify security mitigations on produced binaries;
-7. test only between machines or virtual machines you control and have explicitly authorised.
+The safe migration order for the new x64 application is:
 
-The repository does **not** provide a supported production deployment procedure for its legacy remote-administration protocol.
+1. add authenticated TLS transport and device/operator identity;
+2. add session expiry, replay protection and key rotation;
+3. make the audit trail tamper-evident;
+4. add one narrowly scoped support capability at a time behind authentication, authorisation and explicit consent;
+5. add signed release/update verification;
+6. expand automated tests, CodeQL and dependency scanning around the new application.
 
-## What a modern production design would require
+The historical remote shell, screen-control, file-management, registry/service, audio/video and related command paths are **not** automatically carried into the new application.
 
-A current remote-support product should be redesigned around modern security properties rather than treating the historical protocol as production-ready. At minimum, that design should include:
+## Repository layout
 
-- mutually authenticated TLS using a maintained cryptographic stack;
-- strong operator and device identity;
-- role-based authorisation and least privilege;
-- explicit visible user consent for sensitive operations;
-- session expiry and replay protection;
-- protected credential/key storage;
-- tamper-evident security logging and audit trails;
-- signed binaries and signed update metadata;
-- secure update/rollback handling;
-- rate limiting and connection-abuse controls;
-- dependency inventory and automated vulnerability scanning;
-- reproducible CI builds and security gates;
-- incident-response and key-rotation procedures.
+```text
+Remote/
+├── modern/
+│   ├── CMakeLists.txt
+│   └── RemoteSupport/
+│       └── main.cpp            # new native x64 consent-first application
+├── .github/workflows/
+│   ├── codeql.yml
+│   └── modern-x64.yml          # Debug/Release x64 build + self-test
+├── client/                     # historical client source
+├── server/                     # historical MFC controller source
+├── docs/SECURE_REDESIGN.md
+├── SECURITY.md
+├── MODERNIZATION.md
+└── README.md
+```
 
-These controls require an architectural redesign. Adding encryption around the existing unauthenticated command model alone would not be sufficient.
+## Historical implementation
 
-## Recommended modernisation order
-
-1. Replace the obsolete zlib dependency with a maintained release and verify data-format compatibility.
-2. Resolve compiler warnings and unsafe memory/type assumptions.
-3. Audit pointer-sized arithmetic before introducing x64.
-4. Migrate text handling to Unicode in a separate, tested change.
-5. Remove or redesign legacy privileged operations rather than carrying them forward unchanged.
-6. Design authentication, authorisation, consent and encrypted transport as a new security boundary.
-7. Make CodeQL/build checks required only after the build baseline is consistently green.
-
-## Security reporting
-
-Please follow [`SECURITY.md`](SECURITY.md). Do not place credentials, live targets or weaponised proof-of-concept material in a public issue.
+The legacy `client/` and `server/` trees remain available for academic comparison, migration analysis and defensive review. They are separate from the new x64 application and should not be treated as the security architecture for the redesign.
 
 ## Contributing
 
-Keep changes small and reviewable. Prefer one migration concern per pull request, such as dependency cleanup, warning fixes, memory-safety fixes, x64 readiness, Unicode migration or defensive build hardening.
+Keep security-sensitive changes small and reviewable. Do not weaken authentication, consent, audit or fail-closed behaviour to preserve compatibility with the historical protocol.
 
-Do not commit Visual Studio caches, local build products or user-specific project settings; the repository `.gitignore` covers the common cases.
-
-## Disclaimer
-
-This is legacy software with security-sensitive capabilities. Only use it where you have explicit permission.
+Do not commit local build products, IDE caches, credentials, signing keys or generated secrets.
