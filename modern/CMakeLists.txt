@@ -25,6 +25,8 @@ target_link_libraries(RemoteSupport PRIVATE
 )
 
 if(MSVC)
+    set_property(TARGET RemoteSupport PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
     target_compile_options(RemoteSupport PRIVATE
         /W4
         /permissive-
