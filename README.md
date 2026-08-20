@@ -17,12 +17,14 @@ Windows-Remote-Support-x86.exe
 Windows-Remote-Support-x64.exe
 Windows-Remote-Support-x86.zip
 Windows-Remote-Support-x64.zip
-Windows-Remote-Support-macOS.dmg
+Windows-Remote-Support-macOS-AppleSilicon.dmg
+Windows-Remote-Support-macOS-Intel.dmg
 Windows-Remote-Support-Linux-x86_64.AppImage
 ```
 
 - Windows: native x86 and x64 C++20 controllers.
-- macOS: `Windows Remote Support.app` distributed inside the DMG.
+- macOS Apple Silicon: ARM64 `Windows Remote Support.app` inside the Apple Silicon DMG.
+- macOS Intel: x86_64 `Windows Remote Support.app` inside the Intel DMG.
 - Ubuntu/Linux: x86_64 AppImage.
 
 The macOS and Linux builds package their Python/Tk runtime, so Python is not required on the destination computer.
@@ -43,7 +45,8 @@ The controller validates the target and records the hand-off before opening the 
 1. Download the file for the computer running the controller:
    - Windows 64-bit: `Windows-Remote-Support-x64.exe`
    - Windows 32-bit: `Windows-Remote-Support-x86.exe`
-   - macOS: `Windows-Remote-Support-macOS.dmg`
+   - Apple Silicon Mac: `Windows-Remote-Support-macOS-AppleSilicon.dmg`
+   - Intel Mac: `Windows-Remote-Support-macOS-Intel.dmg`
    - Ubuntu/Linux x86_64: `Windows-Remote-Support-Linux-x86_64.AppImage`
 2. Run the controller.
 3. Enter the remote computer hostname or IP address.
@@ -54,7 +57,7 @@ The controller validates the target and records the hand-off before opening the 
 
 ### macOS
 
-Open the DMG and launch **Windows Remote Support.app**. macOS may warn that the first release is unsigned; only run a copy obtained from this repository's release page.
+Open the DMG matching your Mac architecture and launch **Windows Remote Support.app**. macOS may warn that the first release is unsigned; only run a copy obtained from this repository's release page.
 
 ### Ubuntu/Linux
 
@@ -142,7 +145,7 @@ The portable controller source is `portable/remote_support.py`. Its non-interact
 python3 portable/remote_support.py --self-test
 ```
 
-Release packaging uses PyInstaller; the macOS package is wrapped as a DMG and the Linux package as an AppImage.
+Release packaging uses PyInstaller; macOS packages are wrapped as DMGs and the Linux package as an AppImage.
 
 ## Security baseline
 
