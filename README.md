@@ -10,7 +10,7 @@ The repository now targets the current Microsoft C++ toolchain generation:
 
 - **Visual Studio 2026 18.8.2 or newer** is the supported IDE baseline;
 - **MSVC v145 / 14.51 or newer** is required;
-- **Windows 11 SDK 10.0.28000.2526** is pinned for reproducible builds;
+- MSBuild selects the **newest installed supported Windows SDK** (`WindowsTargetPlatformVersion=10.0`); the July 2026 Windows 11 SDK `10.0.28000.2526` is the current recommended SDK where installed;
 - **C++20** language mode and MSVC conformance mode are enabled repository-wide;
 - the compiler host architecture is set to **x64**;
 - dependencies are managed with **vcpkg manifest mode**;
@@ -30,7 +30,8 @@ MSBuild C/C++ projects inherit the defensive defaults in [`Directory.Build.targe
 - DEP/NX-compatible linking;
 - `asInvoker` execution;
 - UIAccess disabled;
-- CFG-compatible Program Database debug information.
+- CFG-compatible Program Database debug information;
+- secure CRT C++ overloads for fixed-size legacy buffers rather than globally disabling secure-CRT diagnostics.
 
 The buffer implementation has also been updated to avoid 32-bit pointer truncation and to reject arithmetic overflow when expanding receive/send buffers.
 
@@ -56,7 +57,7 @@ Remote/
 ├── server/
 │   ├── 2015Remote.sln         # Visual Studio 2026 solution metadata
 │   └── 2015Remote/            # MFC controller application
-├── Directory.Build.props      # v145, SDK, C++20 and vcpkg defaults
+├── Directory.Build.props      # v145, current SDK selection, C++20 and vcpkg defaults
 ├── Directory.Build.targets    # compiler/linker hardening
 ├── vcpkg.json                 # maintained third-party dependencies
 ├── MODERNIZATION.md
@@ -70,7 +71,7 @@ Install on a supported 64-bit Windows system:
 
 1. Visual Studio 2026 18.8.2 or newer with **Desktop development with C++**.
 2. MSVC v145 and MFC/ATL support.
-3. Windows 11 SDK `10.0.28000.2526`.
+3. A current supported Windows 11 SDK. The July 2026 SDK `10.0.28000.2526` is recommended; the project intentionally selects the newest supported SDK installed on the machine so CI and developer workstations do not fail simply because a newer supported SDK is present.
 4. Git.
 5. vcpkg integration for MSBuild.
 
@@ -124,13 +125,14 @@ Completed or in place:
 
 - Visual Studio 2026 solution metadata;
 - MSVC v145 baseline;
-- pinned Windows 11 SDK `10.0.28000.2526`;
+- newest-installed supported Windows SDK selection, with Windows 11 SDK `10.0.28000.2526` recommended for the current 2026 environment;
 - C++20 and conformance mode;
 - x64-hosted compiler tools;
 - maintained zlib dependency for the MSBuild server project through vcpkg;
 - removal of the obsolete server-side vendored zlib binary/header set;
 - checked buffer arithmetic and pointer-safe buffer-length calculation;
 - compiler/linker exploit mitigations;
+- secure CRT overload migration for fixed-size legacy buffers;
 - Debug/Release CI build jobs on the current Windows/Visual Studio runner generation;
 - CodeQL v4 security analysis;
 - current GitHub checkout action;
