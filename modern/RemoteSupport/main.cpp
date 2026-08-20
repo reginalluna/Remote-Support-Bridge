@@ -16,15 +16,21 @@ constexpr int kStartSessionButton = 1001;
 constexpr int kEndSessionButton = 1002;
 constexpr int kOpenAuditButton = 1003;
 constexpr int kAboutButton = 1004;
-constexpr int kRdpTargetEdit = 1005;
+constexpr int kTargetEdit = 1005;
 constexpr int kConnectRdpButton = 1006;
+constexpr int kConnectSshButton = 1007;
+constexpr int kConnectSftpButton = 1008;
+constexpr int kConnectVncButton = 1009;
 
 HWND gMainWindow = nullptr;
 HWND gStatusText = nullptr;
 HWND gSessionText = nullptr;
 HWND gEndSessionButton = nullptr;
-HWND gRdpTargetEdit = nullptr;
+HWND gTargetEdit = nullptr;
 HWND gConnectRdpButton = nullptr;
+HWND gConnectSshButton = nullptr;
+HWND gConnectSftpButton = nullptr;
+HWND gConnectVncButton = nullptr;
 std::string gSessionId;
 std::wstring gAuditPath;
 
@@ -123,7 +129,7 @@ std::wstring SessionDisplayName()
     return L"Session: " + std::wstring(gSessionId.begin(), gSessionId.end());
 }
 
-bool IsSafeRdpTarget(const std::wstring& target)
+bool IsSafeTarget(const std::wstring& target)
 {
     if (target.empty() || target.size() > 255)
     {
@@ -164,8 +170,13 @@ void RefreshSessionUi()
     SetWindowTextW(gStatusText, gSessionId.empty() ? L"Status: ready - no active support session" : L"Status: consent granted - support session active");
     const std::wstring session = SessionDisplayName();
     SetWindowTextW(gSessionText, session.c_str());
-    EnableWindow(gEndSessionButton, gSessionId.empty() ? FALSE : TRUE);
-    EnableWindow(gConnectRdpButton, gSessionId.empty() ? FALSE : TRUE);
+
+    const BOOL enabled = gSessionId.empty() ? FALSE : TRUE;
+    EnableWindow(gEndSessionButton, enabled);
+    EnableWindow(gConnectRdpButton, enabled);
+    EnableWindow(gConnectSshButton, enabled);
+    EnableWindow(gConnectSftpButton, enabled);
+    EnableWindow(gConnectVncButton, enabled);
 }
 
 void StartLocalSession(HWND owner)
@@ -196,7 +207,7 @@ void StartLocalSession(HWND owner)
     const std::wstring sessionWide(sessionId.begin(), sessionId.end());
     const std::wstring prompt =
         L"Start an authorised support session on this computer?\n\nSession: " + sessionWide +
-        L"\n\nAfter consent, this application can hand off a connection to the built-in Windows Remote Desktop client. Windows remains responsible for remote authentication, authorisation and the RDP connection.";
+        L"\n\nAfter consent, this application can hand off to Windows RDP, OpenSSH/SFTP, or a registered VNC viewer. Those established clients remain responsible for remote authentication and authorisation.";
 
     const int choice = MessageBoxW(
         owner,
@@ -236,24 +247,35 @@ void EndLocalSession(HWND owner, const char* eventName)
     RefreshSessionUi();
 }
 
-void LaunchRemoteDesktop(HWND owner)
+bool GetAuthorisedTarget(HWND owner, std::wstring& target)
 {
     if (gSessionId.empty())
     {
-        MessageBoxW(owner, L"Start and approve a support session before opening Remote Desktop.", kAppName, MB_OK | MB_ICONINFORMATION);
-        return;
+        MessageBoxW(owner, L"Start and approve a support session before opening a remote client.", kAppName, MB_OK | MB_ICONINFORMATION);
+        return false;
     }
 
-    const std::wstring target = ReadControlText(gRdpTargetEdit);
-    if (!IsSafeRdpTarget(target))
+    target = ReadControlText(gTargetEdit);
+    if (!IsSafeTarget(target))
     {
         MessageBoxW(owner, L"Enter a valid computer name or IP address. Only letters, numbers, dots, hyphens, colons and IPv6 brackets are accepted.", kAppName, MB_OK | MB_ICONWARNING);
+        return false;
+    }
+
+    return true;
+}
+
+void LaunchRemoteDesktop(HWND owner)
+{
+    std::wstring target;
+    if (!GetAuthorisedTarget(owner, target))
+    {
         return;
     }
 
     if (gAuditPath.empty() || !WriteAudit(gAuditPath, gSessionId, "rdp_launch_requested"))
     {
-        MessageBoxW(owner, L"The Remote Desktop hand-off was blocked because its audit event could not be recorded.", kAppName, MB_OK | MB_ICONERROR);
+        MessageBoxW(owner, L"The RDP hand-off was blocked because its audit event could not be recorded.", kAppName, MB_OK | MB_ICONERROR);
         return;
     }
 
@@ -267,6 +289,62 @@ void LaunchRemoteDesktop(HWND owner)
     }
 
     WriteAudit(gAuditPath, gSessionId, "rdp_client_started");
+}
+
+void LaunchOpenSshClient(HWND owner, const wchar_t* executable, const char* requestedEvent, const char* startedEvent, const char* failedEvent, const wchar_t* displayName)
+{
+    std::wstring target;
+    if (!GetAuthorisedTarget(owner, target))
+    {
+        return;
+    }
+
+    if (gAuditPath.empty() || !WriteAudit(gAuditPath, gSessionId, requestedEvent))
+    {
+        MessageBoxW(owner, L"The client hand-off was blocked because its audit event could not be recorded.", kAppName, MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    const HINSTANCE result = ShellExecuteW(owner, L"open", executable, target.c_str(), nullptr, SW_SHOWNORMAL);
+    if (reinterpret_cast<INT_PTR>(result) <= 32)
+    {
+        WriteAudit(gAuditPath, gSessionId, failedEvent);
+        const std::wstring message = std::wstring(displayName) + L" could not be started. Install or enable the Windows OpenSSH Client feature, then try again.";
+        MessageBoxW(owner, message.c_str(), kAppName, MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    WriteAudit(gAuditPath, gSessionId, startedEvent);
+}
+
+void LaunchVnc(HWND owner)
+{
+    std::wstring target;
+    if (!GetAuthorisedTarget(owner, target))
+    {
+        return;
+    }
+
+    if (gAuditPath.empty() || !WriteAudit(gAuditPath, gSessionId, "vnc_launch_requested"))
+    {
+        MessageBoxW(owner, L"The VNC hand-off was blocked because its audit event could not be recorded.", kAppName, MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    const std::wstring uri = L"vnc://" + target;
+    const HINSTANCE result = ShellExecuteW(owner, L"open", uri.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+    if (reinterpret_cast<INT_PTR>(result) <= 32)
+    {
+        WriteAudit(gAuditPath, gSessionId, "vnc_launch_failed");
+        MessageBoxW(
+            owner,
+            L"No VNC viewer is registered for vnc:// links on this Windows computer. Install a trusted VNC viewer and enable Screen Sharing/VNC on the remote macOS or Linux computer.",
+            kAppName,
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    WriteAudit(gAuditPath, gSessionId, "vnc_client_started");
 }
 
 void OpenAuditLog(HWND owner)
@@ -294,7 +372,11 @@ void ShowAbout(HWND owner)
     const std::wstring message =
         L"Windows Remote Support\n\n"
         L"Architecture: " + ArchitectureName() +
-        L"\n\nConsent-first Windows support application. Remote screen, keyboard and mouse operation is provided by the authenticated Windows Remote Desktop subsystem rather than a custom remote-control protocol.";
+        L"\n\nCross-platform target hand-offs:\n"
+        L"- RDP: Windows and RDP-enabled Ubuntu desktops\n"
+        L"- SSH/SFTP: macOS, Ubuntu and other SSH servers\n"
+        L"- VNC: macOS Screen Sharing and VNC-enabled Linux desktops\n\n"
+        L"The application requires explicit local consent and audits each hand-off. Authentication remains with the selected remote-access client.";
     MessageBoxW(owner, message.c_str(), L"About Windows Remote Support", MB_OK | MB_ICONINFORMATION);
 }
 
@@ -318,8 +400,8 @@ int RunSelfTest()
     const std::string second = GenerateSessionId();
     const bool validCharacters = first.find_first_not_of("0123456789abcdef") == std::string::npos;
     const bool validArchitecture = ArchitectureName() == L"x64 (64-bit)" || ArchitectureName() == L"x86 (32-bit)";
-    const bool validRdpTarget = IsSafeRdpTarget(L"lab-pc-02:3389") && IsSafeRdpTarget(L"[2001:db8::10]") && !IsSafeRdpTarget(L"/admin");
-    return first.size() == 32 && second.size() == 32 && first != second && validCharacters && validArchitecture && validRdpTarget ? 0 : 1;
+    const bool validTargets = IsSafeTarget(L"lab-mac.local") && IsSafeTarget(L"192.168.10.20") && IsSafeTarget(L"[2001:db8::10]") && !IsSafeTarget(L"host /admin");
+    return first.size() == 32 && second.size() == 32 && first != second && validCharacters && validArchitecture && validTargets ? 0 : 1;
 }
 
 void ApplyDefaultFont(HWND control)
@@ -371,7 +453,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
         AddControl(
             0,
             L"STATIC",
-            L"Consent-first Windows support interface with an audited hand-off to Windows Remote Desktop.",
+            L"Consent-first Windows controller with audited hand-offs to standard remote-access clients.",
             WS_CHILD | WS_VISIBLE,
             28,
             62,
@@ -387,23 +469,27 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
         AddControl(0, L"STATIC", architecture.c_str(), WS_CHILD | WS_VISIBLE, 28, 206, 620, 24, hwnd, 0);
 
         AddControl(0, L"STATIC", L"Remote computer name or IP address:", WS_CHILD | WS_VISIBLE, 28, 242, 300, 24, hwnd, 0);
-        gRdpTargetEdit = AddControl(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL, 28, 268, 396, 30, hwnd, kRdpTargetEdit);
-        gConnectRdpButton = AddControl(0, L"BUTTON", L"Connect with Windows RDP", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 440, 268, 208, 30, hwnd, kConnectRdpButton);
+        gTargetEdit = AddControl(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL, 28, 268, 620, 30, hwnd, kTargetEdit);
 
-        AddControl(0, L"BUTTON", L"Start consented session", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON, 28, 326, 190, 42, hwnd, kStartSessionButton);
-        gEndSessionButton = AddControl(0, L"BUTTON", L"End session", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 232, 326, 130, 42, hwnd, kEndSessionButton);
-        AddControl(0, L"BUTTON", L"Open audit log", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 376, 326, 130, 42, hwnd, kOpenAuditButton);
-        AddControl(0, L"BUTTON", L"About", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 520, 326, 128, 42, hwnd, kAboutButton);
+        gConnectRdpButton = AddControl(0, L"BUTTON", L"RDP desktop", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 28, 312, 142, 34, hwnd, kConnectRdpButton);
+        gConnectSshButton = AddControl(0, L"BUTTON", L"SSH terminal", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 184, 312, 142, 34, hwnd, kConnectSshButton);
+        gConnectSftpButton = AddControl(0, L"BUTTON", L"SFTP files", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 340, 312, 142, 34, hwnd, kConnectSftpButton);
+        gConnectVncButton = AddControl(0, L"BUTTON", L"VNC desktop", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 496, 312, 152, 34, hwnd, kConnectVncButton);
+
+        AddControl(0, L"BUTTON", L"Start consented session", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON, 28, 370, 190, 42, hwnd, kStartSessionButton);
+        gEndSessionButton = AddControl(0, L"BUTTON", L"End session", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 232, 370, 130, 42, hwnd, kEndSessionButton);
+        AddControl(0, L"BUTTON", L"Open audit log", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 376, 370, 130, 42, hwnd, kOpenAuditButton);
+        AddControl(0, L"BUTTON", L"About", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 520, 370, 128, 42, hwnd, kAboutButton);
 
         AddControl(
             0,
             L"STATIC",
-            L"Windows RDP provides the network connection, screen, keyboard/mouse and Windows authentication. This application does not install a custom listener or background control service.",
+            L"macOS: enable Remote Login for SSH/SFTP or Screen Sharing for VNC. Ubuntu: enable SSH/SFTP, GNOME Remote Desktop/RDP, or a VNC server. A matching client/viewer must be available on this Windows PC.",
             WS_CHILD | WS_VISIBLE,
             28,
-            392,
+            438,
             620,
-            54,
+            70,
             hwnd,
             0);
 
@@ -427,6 +513,15 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
             return 0;
         case kConnectRdpButton:
             LaunchRemoteDesktop(hwnd);
+            return 0;
+        case kConnectSshButton:
+            LaunchOpenSshClient(hwnd, L"ssh.exe", "ssh_launch_requested", "ssh_client_started", "ssh_launch_failed", L"SSH");
+            return 0;
+        case kConnectSftpButton:
+            LaunchOpenSshClient(hwnd, L"sftp.exe", "sftp_launch_requested", "sftp_client_started", "sftp_launch_failed", L"SFTP");
+            return 0;
+        case kConnectVncButton:
+            LaunchVnc(hwnd);
             return 0;
         default:
             break;
@@ -480,7 +575,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         700,
-        520,
+        570,
         nullptr,
         nullptr,
         instance,
