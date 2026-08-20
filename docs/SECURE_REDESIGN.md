@@ -2,6 +2,20 @@
 
 The historical protocol in this repository should not be promoted directly into a production remote-support protocol. A modern implementation should place a new security boundary around every sensitive action instead of adding isolated checks to individual legacy commands.
 
+## Implemented baseline
+
+The new [`modern/`](../modern/) application now establishes the first security boundary independently of the historical command protocol:
+
+- native x64, Unicode and C++20 build;
+- explicit visible consent before local session initialisation;
+- 128-bit session identifiers generated with Windows CNG;
+- local UTC audit records with fail-closed behaviour if an approved session cannot be recorded;
+- no administrator elevation request;
+- no network listener and no privileged remote action in the initial baseline;
+- modern MSVC exploit mitigations and automated x64 Debug/Release builds with a non-interactive self-test.
+
+This baseline is intentionally small. It gives subsequent authentication, transport and capability work a reviewable place to attach without inheriting the legacy protocol's trust assumptions.
+
 ## Security goals
 
 A replacement design should provide:
@@ -63,12 +77,12 @@ Apply connection limits, request limits, lockout/back-off behaviour and anomaly 
 
 ## Migration strategy
 
-1. Stabilise the current source for defensive analysis only.
-2. Replace obsolete dependencies and fix memory/type-safety findings.
-3. Define the identity, transport, authorisation, consent and audit interfaces independently of the legacy command tokens.
-4. Implement a minimal secure session that supports no privileged remote capability.
-5. Add individual capabilities only after their policy, consent and audit requirements are defined and tested.
-6. Keep the historical protocol isolated from production networks during migration.
+1. Keep the historical implementation separate for comparison and defensive review.
+2. Build the new x64 session shell independently of legacy command tokens. **Completed.**
+3. Add authenticated encrypted transport and operator/device identity to the new application.
+4. Add session expiry, replay resistance and key rotation.
+5. Make audit records tamper-evident and suitable for central collection.
+6. Add individual support capabilities only after their policy, consent and audit requirements are defined and tested.
 7. Require security review and threat-model updates for every newly enabled capability.
 
 ## Non-goal
