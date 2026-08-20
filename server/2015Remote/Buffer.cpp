@@ -1,6 +1,7 @@
 #include "StdAfx.h"
 #include "Buffer.h"
 
+#include <limits.h>
 #include <math.h>
 
 
@@ -38,14 +39,15 @@ CBuffer::~CBuffer(void)
 }
 
 
+
 ULONG CBuffer::RemoveComletedBuffer(ULONG ulLength)
 {
 
-	if (ulLength >GetBufferMaxLength())   //如果传进的长度比内存的长度还大
+	if (ulLength >GetBufferMaxLength())
 	{
 		return 0;
 	}
-	if (ulLength >GetBufferLength())  //如果传进的长度 比有效的数据长度还大
+	if (ulLength >GetBufferLength())
 	{
 		ulLength = GetBufferLength();
 	}
@@ -53,12 +55,12 @@ ULONG CBuffer::RemoveComletedBuffer(ULONG ulLength)
 
 	if (ulLength)
 	{
-		MoveMemory(m_Base,m_Base+ulLength,GetBufferMaxLength() - ulLength);   //数组前移  [Shinexxxx??]
+		MoveMemory(m_Base,m_Base+ulLength,GetBufferMaxLength() - ulLength);
 
 		m_Ptr -= ulLength;
 	}
 
-	DeAllocateBuffer(GetBufferLength());   
+	DeAllocateBuffer(GetBufferLength());
 
 	return ulLength;
 }
@@ -80,13 +82,13 @@ ULONG CBuffer::ReadBuffer(PBYTE Buffer, ULONG ulLength)
 	if (ulLength)
 	{
 
-		CopyMemory(Buffer,m_Base,ulLength);  
+		CopyMemory(Buffer,m_Base,ulLength);
 
 		MoveMemory(m_Base,m_Base+ulLength,GetBufferMaxLength() - ulLength);
 		m_Ptr -= ulLength;
 	}
 
-	DeAllocateBuffer(GetBufferLength());   
+	DeAllocateBuffer(GetBufferLength());
 
 	LeaveCriticalSection(&m_cs);
 	return ulLength;
@@ -94,28 +96,36 @@ ULONG CBuffer::ReadBuffer(PBYTE Buffer, ULONG ulLength)
 
 
 
-ULONG CBuffer::DeAllocateBuffer(ULONG ulLength)        
+ULONG CBuffer::DeAllocateBuffer(ULONG ulLength)
 {
-	if (ulLength < GetBufferLength())     
+	if (ulLength < GetBufferLength())
 		return 0;
 
-	ULONG ulNewMaxLength = (ULONG)ceil(ulLength / F_PAGE_ALIGNMENT) * U_PAGE_ALIGNMENT;  
+	ULONG ulNewMaxLength = (ULONG)ceil(ulLength / F_PAGE_ALIGNMENT) * U_PAGE_ALIGNMENT;
 
-	if (GetBufferMaxLength() <= ulNewMaxLength) 
+	if (GetBufferMaxLength() <= ulNewMaxLength)
 	{
 		return 0;
 	}
 	PBYTE NewBase = (PBYTE) VirtualAlloc(NULL,ulNewMaxLength,MEM_COMMIT,PAGE_READWRITE);
+	if (NewBase == NULL)
+	{
+		return 0;
+	}
 
-	ULONG ulv1 = GetBufferLength();  //算原先内存的有效长度
-	CopyMemory(NewBase,m_Base,ulv1);
+	ULONG ulv1 = GetBufferLength();
+	if (m_Base != NULL && ulv1 != 0)
+	{
+		CopyMemory(NewBase,m_Base,ulv1);
+	}
 
-	VirtualFree(m_Base,0,MEM_RELEASE);
+	if (m_Base != NULL)
+	{
+		VirtualFree(m_Base,0,MEM_RELEASE);
+	}
 
 	m_Base = NewBase;
-
 	m_Ptr = m_Base + ulv1;
-
 	m_ulMaxLength = ulNewMaxLength;
 
 	return m_ulMaxLength;
@@ -124,18 +134,26 @@ ULONG CBuffer::DeAllocateBuffer(ULONG ulLength)
 
 BOOL CBuffer::WriteBuffer(PBYTE Buffer, ULONG ulLength)
 {
-	EnterCriticalSection(&m_cs);
-
-
-	if (ReAllocateBuffer(ulLength + GetBufferLength()) == -1)//10 +1   1024
+	if (Buffer == NULL && ulLength != 0)
 	{
-		LeaveCriticalSection(&m_cs);
-		return false;
+		return FALSE;
 	}
 
-	CopyMemory(m_Ptr,Buffer,ulLength);//Hello 5
+	EnterCriticalSection(&m_cs);
 
-	m_Ptr+=ulLength;
+	const ULONG currentLength = GetBufferLength();
+	if (ulLength > ULONG_MAX - currentLength || ReAllocateBuffer(ulLength + currentLength) == (ULONG)-1)
+	{
+		LeaveCriticalSection(&m_cs);
+		return FALSE;
+	}
+
+	if (ulLength != 0)
+	{
+		CopyMemory(m_Ptr,Buffer,ulLength);
+		m_Ptr+=ulLength;
+	}
+
 	LeaveCriticalSection(&m_cs);
 	return TRUE;
 }
@@ -144,27 +162,34 @@ BOOL CBuffer::WriteBuffer(PBYTE Buffer, ULONG ulLength)
 
 ULONG CBuffer::ReAllocateBuffer(ULONG ulLength)
 {
-	if (ulLength < GetBufferMaxLength())   
+	if (ulLength < GetBufferMaxLength())
 		return 0;
 
-	ULONG  ulNewMaxLength = (ULONG)ceil(ulLength / F_PAGE_ALIGNMENT) * U_PAGE_ALIGNMENT;  
-	PBYTE  NewBase  = (PBYTE) VirtualAlloc(NULL,ulNewMaxLength,MEM_COMMIT,PAGE_READWRITE);
-	if (NewBase == NULL)
+	ULONG ulNewMaxLength = (ULONG)ceil(ulLength / F_PAGE_ALIGNMENT) * U_PAGE_ALIGNMENT;
+	if (ulNewMaxLength < ulLength)
 	{
-		return -1; 
+		return (ULONG)-1;
 	}
 
-	ULONG ulv1 = GetBufferLength();   //原先的有效数据长度  
-	CopyMemory(NewBase,m_Base,ulv1);
+	PBYTE NewBase  = (PBYTE) VirtualAlloc(NULL,ulNewMaxLength,MEM_COMMIT,PAGE_READWRITE);
+	if (NewBase == NULL)
+	{
+		return (ULONG)-1;
+	}
+
+	ULONG ulv1 = GetBufferLength();
+	if (m_Base != NULL && ulv1 != 0)
+	{
+		CopyMemory(NewBase,m_Base,ulv1);
+	}
 
 	if (m_Base)
 	{
 		VirtualFree(m_Base,0,MEM_RELEASE);
 	}
 	m_Base = NewBase;
-	m_Ptr = m_Base + ulv1; //1024
-
-	m_ulMaxLength = ulNewMaxLength;  //2048
+	m_Ptr = m_Base + ulv1;
+	m_ulMaxLength = ulNewMaxLength;
 
 	return m_ulMaxLength;
 }
@@ -176,23 +201,26 @@ VOID CBuffer::ClearBuffer()
 	EnterCriticalSection(&m_cs);
 	m_Ptr = m_Base;
 
-	DeAllocateBuffer(1024);  
+	DeAllocateBuffer(1024);
 	LeaveCriticalSection(&m_cs);
 }
 
 
 
-ULONG CBuffer::GetBufferLength() //获得有效数据长度
+ULONG CBuffer::GetBufferLength()
 {
-	if (m_Base == NULL)
+	if (m_Base == NULL || m_Ptr == NULL || m_Ptr < m_Base)
 		return 0;
 
-    return (ULONG)m_Ptr - (ULONG)m_Base;
+	const size_t length = static_cast<size_t>(m_Ptr - m_Base);
+	if (length > ULONG_MAX)
+		return 0;
 
+	return static_cast<ULONG>(length);
 }
 
 
-ULONG CBuffer::GetBufferMaxLength()   
+ULONG CBuffer::GetBufferMaxLength()
 {
 	return m_ulMaxLength;
 }
