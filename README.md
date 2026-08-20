@@ -1,82 +1,97 @@
 # Remote
 
-Legacy Windows/MFC remote-administration codebase preserved for maintenance, documentation and defensive modernisation.
+Windows/MFC remote-support codebase being updated for a 2026 Windows development environment.
 
-> **Important:** this repository contains historical remote shell, screen-control, file-management, process/window-management, registry/service-management, audio/video and networking functionality. The original protocol predates modern authentication, encryption, consent and audit requirements. Use the code only on systems you own or are explicitly authorised to test, and do not expose the legacy protocol directly to the public Internet.
+> Use this software only on systems you own or are explicitly authorised to administer. The historical command protocol contains privileged remote-management functions, so it must not be exposed directly to untrusted networks.
 
-## Current status
+## 2026 development baseline
 
-The repository has now received a broader defensive modernisation pass covering repository hygiene, Visual Studio 2022 solution metadata, compiler/linker exploit mitigations, security policy documentation and automated CodeQL analysis.
+The repository now targets the current Microsoft C++ toolchain generation while retaining a compatibility fallback for CI:
 
-The application code itself is still largely legacy code. It is **not** a production-ready remote-support product.
+- **Visual Studio 2026 18.6 or newer** is the preferred IDE;
+- **MSVC v145 / 14.51 or newer** is preferred when Visual Studio 2026 is available;
+- **MSVC v143** remains an automatic fallback for Visual Studio 2022-based CI environments;
+- **Windows 11 SDK 10.0.28000.2526 or newer supported SDK** is recommended;
+- **C++20** language mode and MSVC conformance mode are enabled repository-wide;
+- the compiler host architecture is set to **x64**;
+- dependencies are managed with **vcpkg manifest mode**;
+- the server no longer uses the bundled 2002-era zlib headers/library and instead restores maintained `zlib` through `vcpkg`.
 
-Known limitations still include:
+The server application still produces a **Win32** binary at this stage. Moving the output itself to x64 and converting the application globally to Unicode require additional source-level changes because the historical code contains 32-bit and ANSI assumptions.
 
-- Win32-only project configuration;
-- Multi-Byte rather than Unicode text handling;
-- 32-bit pointer/integer assumptions in parts of the source;
-- bundled zlib 1.1.4-era files and libraries;
-- Visual C++ 6-era project material in the client tree;
-- no verified modern mutual authentication, encrypted transport, role-based authorisation, consent UI or tamper-evident session audit model for the legacy remote protocol.
+## Security hardening
 
-See [`MODERNIZATION.md`](MODERNIZATION.md) for compatibility notes and [`SECURITY.md`](SECURITY.md) for the current security policy and production-security requirements.
-
-## Defensive hardening now applied
-
-MSBuild-based C/C++ projects inherit hardening from [`Directory.Build.targets`](Directory.Build.targets):
+MSBuild C/C++ projects inherit the defensive defaults in [`Directory.Build.targets`](Directory.Build.targets):
 
 - `/W4` warning level;
 - SDL security checks;
 - `/GS` stack-buffer protection;
-- Control Flow Guard for compiler and linker output;
+- Control Flow Guard;
 - ASLR-compatible linking;
 - DEP/NX-compatible linking;
-- `asInvoker` execution to avoid requesting elevation by default;
+- `asInvoker` execution;
 - UIAccess disabled.
 
-These mitigations reduce exploitability of some memory-corruption defects. They do **not** make the legacy command protocol safe for production use.
+The buffer implementation has also been updated to avoid 32-bit pointer truncation and to reject arithmetic overflow when expanding receive/send buffers.
 
-The repository also includes a scheduled and pull-request-triggered CodeQL workflow at [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml).
+Automated checks are provided by:
+
+- [`.github/workflows/build.yml`](.github/workflows/build.yml) — Debug and Release Windows builds;
+- [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml) — C/C++ CodeQL analysis using the repository security query configuration.
 
 ## Project layout
 
 ```text
 Remote/
 ├── .github/
+│   ├── codeql/
 │   └── workflows/
+│       ├── build.yml
 │       └── codeql.yml
 ├── client/
-│   ├── ClientDll/             # legacy client-side implementation
-│   └── ClientExe/             # legacy client executable project/resources
+│   ├── ClientDll/             # historical client-side source
+│   └── ClientExe/             # historical client launcher/resources
 ├── server/
-│   ├── 2015Remote.sln         # server solution with VS 2022 metadata
-│   └── 2015Remote/            # MFC server application
-├── Directory.Build.targets    # defensive MSVC hardening defaults
+│   ├── 2015Remote.sln         # Visual Studio 2026 solution metadata
+│   └── 2015Remote/            # MFC controller application
+├── Directory.Build.props      # toolchain, C++20 and vcpkg defaults
+├── Directory.Build.targets    # compiler/linker hardening
+├── vcpkg.json                 # maintained third-party dependencies
 ├── MODERNIZATION.md
 ├── SECURITY.md
 └── README.md
 ```
 
-## Requirements
+## Prerequisites
 
-For the server project, use a current Windows development machine with:
+Install on a supported 64-bit Windows system:
 
-- Windows 10 or Windows 11;
-- Visual Studio 2022;
-- the **Desktop development with C++** workload;
-- MFC/ATL support for the installed MSVC toolset;
-- a current Windows SDK installed through Visual Studio.
+1. Visual Studio 2026 with **Desktop development with C++**.
+2. MFC/ATL support for the installed MSVC toolset.
+3. A supported Windows 11 SDK; the July 2026 `10.0.28000.2526` SDK or later is recommended.
+4. Git.
+5. vcpkg integration for MSBuild.
 
-The existing project remains configured for **Win32**. Do not switch it to x64 until the pointer/integer assumptions documented in `MODERNIZATION.md` have been audited.
+Visual Studio 2022 can still be used as a compatibility fallback if the v143 toolset is installed.
 
-## Getting the source
+## Clone the repository
 
 ```powershell
 git clone https://github.com/reginalluna/Remote.git
 cd Remote
 ```
 
-## Opening the server project
+## Enable vcpkg for MSBuild
+
+From a Developer PowerShell where `vcpkg` is available:
+
+```powershell
+vcpkg integrate install
+```
+
+The root [`vcpkg.json`](vcpkg.json) manifest declares `zlib`. With manifest integration enabled, Visual Studio/MSBuild restores the dependency automatically into `vcpkg_installed/` during the build.
+
+## Open and build
 
 Open:
 
@@ -84,96 +99,76 @@ Open:
 server/2015Remote.sln
 ```
 
-in Visual Studio 2022.
+Prefer Visual Studio 2026. Select **Debug | Win32** for the first build, then test **Release | Win32**.
 
-If Visual Studio offers to retarget the project to an installed Windows SDK/toolset, review the proposed changes before accepting them. The solution metadata and defensive build defaults are modernised, but the source still contains legacy assumptions.
-
-## Building for maintenance and defensive testing
-
-1. Select **Win32** as the platform.
-2. Start with the **Debug** configuration.
-3. Build with **Build → Build Solution**.
-4. Treat warnings as migration findings rather than suppressing them globally.
-5. Run only in an isolated test environment or on explicitly authorised systems.
-
-Command-line equivalent from a Visual Studio Developer PowerShell is:
+Command-line builds from a Developer PowerShell:
 
 ```powershell
 msbuild server\2015Remote.sln /m /p:Configuration=Debug /p:Platform=Win32
+msbuild server\2015Remote.sln /m /p:Configuration=Release /p:Platform=Win32
 ```
 
-A clean build on every current Visual Studio installation is **not yet guaranteed**, primarily because the repository still carries an obsolete zlib dependency and historical project assumptions.
+## Verify exploit mitigations
 
-## Verifying Windows exploit mitigations
-
-After a successful build, inspect the executable headers from a Visual Studio Developer Command Prompt:
+After a successful build, inspect the PE headers:
 
 ```text
 dumpbin /headers path\to\2015Remote.exe
 ```
 
-Check that the resulting image reports modern mitigation characteristics such as dynamic-base/ASLR, NX compatibility and Guard/CFG information. The exact text varies by linker version.
+Confirm the produced image reports the expected modern mitigation characteristics, including dynamic-base/ASLR, NX compatibility and Guard/CFG information.
 
-## Client source
+## Current modernisation status
 
-The client tree contains Visual C++ 6-era project material and pre-existing legacy source. Those files are retained for reproducibility, audit and historical review.
+Completed or in place:
 
-There is currently no supported modern production client build procedure. Migrating the client safely requires a separate source-level review rather than accepting an automatic toolchain conversion wholesale.
+- Visual Studio 2026 solution metadata;
+- automatic v145/v143 toolset selection;
+- current supported Windows SDK selection through `10.0` MSBuild targeting;
+- C++20 and conformance mode;
+- x64-hosted compiler tools;
+- maintained zlib dependency for the MSBuild server project through vcpkg;
+- removal of the obsolete server-side vendored zlib binary/header set;
+- checked buffer arithmetic and pointer-safe buffer-length calculation;
+- compiler/linker exploit mitigations;
+- reproducible Debug/Release CI build jobs;
+- CodeQL security analysis;
+- security and redesign documentation.
 
-## Supported use of the repository today
+Still requiring source-level migration:
 
-The supported use is **maintenance, code review, compatibility work, defensive analysis and controlled laboratory testing**:
+- native **x64 output** for the application;
+- complete **Unicode** conversion;
+- replacement of Visual C++ 6-era client project files with a current build project;
+- removal of remaining prebuilt historical client artefacts;
+- broader RAII/modern C++ conversion of raw Win32 handles, buffers and ownership;
+- retirement or redesign of historical privileged command paths;
+- a production security boundary for identity, authentication, authorisation, consent, encrypted transport, session expiry and audit logging.
 
-1. clone the repository;
-2. open the server solution in Visual Studio 2022;
-3. build/debug the Win32 project in an isolated environment;
-4. review compiler and CodeQL findings;
-5. replace obsolete dependencies and unsafe legacy assumptions in small pull requests;
-6. verify security mitigations on produced binaries;
-7. test only between machines or virtual machines you control and have explicitly authorised.
+See [`MODERNIZATION.md`](MODERNIZATION.md), [`SECURITY.md`](SECURITY.md) and [`docs/SECURE_REDESIGN.md`](docs/SECURE_REDESIGN.md) for the migration and security architecture notes.
 
-The repository does **not** provide a supported production deployment procedure for its legacy remote-administration protocol.
+## Development workflow
 
-## What a modern production design would require
+For each modernisation change:
 
-A current remote-support product should be redesigned around modern security properties rather than treating the historical protocol as production-ready. At minimum, that design should include:
-
-- mutually authenticated TLS using a maintained cryptographic stack;
-- strong operator and device identity;
-- role-based authorisation and least privilege;
-- explicit visible user consent for sensitive operations;
-- session expiry and replay protection;
-- protected credential/key storage;
-- tamper-evident security logging and audit trails;
-- signed binaries and signed update metadata;
-- secure update/rollback handling;
-- rate limiting and connection-abuse controls;
-- dependency inventory and automated vulnerability scanning;
-- reproducible CI builds and security gates;
-- incident-response and key-rotation procedures.
-
-These controls require an architectural redesign. Adding encryption around the existing unauthenticated command model alone would not be sufficient.
-
-## Recommended modernisation order
-
-1. Replace the obsolete zlib dependency with a maintained release and verify data-format compatibility.
-2. Resolve compiler warnings and unsafe memory/type assumptions.
-3. Audit pointer-sized arithmetic before introducing x64.
-4. Migrate text handling to Unicode in a separate, tested change.
-5. Remove or redesign legacy privileged operations rather than carrying them forward unchanged.
-6. Design authentication, authorisation, consent and encrypted transport as a new security boundary.
-7. Make CodeQL/build checks required only after the build baseline is consistently green.
+1. create a short-lived branch;
+2. keep the change focused;
+3. build Debug and Release;
+4. fix new compiler warnings rather than suppressing them globally;
+5. run CodeQL/CI;
+6. verify security-sensitive behaviour in an isolated authorised test environment;
+7. merge only after the build and analysis checks pass.
 
 ## Security reporting
 
-Please follow [`SECURITY.md`](SECURITY.md). Do not place credentials, live targets or weaponised proof-of-concept material in a public issue.
+Follow [`SECURITY.md`](SECURITY.md). Do not publish credentials, live targets or weaponised proof-of-concept material in a public issue.
 
 ## Contributing
 
-Keep changes small and reviewable. Prefer one migration concern per pull request, such as dependency cleanup, warning fixes, memory-safety fixes, x64 readiness, Unicode migration or defensive build hardening.
+Prefer small, reviewable changes. Good migration units include dependency updates, memory-safety fixes, x64 readiness, Unicode conversion, RAII adoption, build reproducibility and defensive security hardening.
 
-Do not commit Visual Studio caches, local build products or user-specific project settings; the repository `.gitignore` covers the common cases.
+Do not commit Visual Studio caches, local build products, `vcpkg_installed/`, generated binaries or user-specific project settings.
 
-## Disclaimer
+## Licence and authorised use
 
-This is legacy software with security-sensitive capabilities. Only use it where you have explicit permission. Treat the repository as a maintenance and defensive-modernisation project, not as a security-reviewed remote-support product.
+Use the code only where you have permission to do so, and comply with applicable law, organisational policy and the licences of included dependencies.
