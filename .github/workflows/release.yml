@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - VERSION
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION: $version" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Configure x86
+        run: cmake -S modern -B build-release-x86 -A Win32
+
+      - name: Build x86
+        run: cmake --build build-release-x86 --config Release --parallel
+
+      - name: Self-test x86
+        shell: pwsh
+        run: '& ".\build-release-x86\Release\RemoteSupport.exe" --self-test'
+
+      - name: Configure x64
+        run: cmake -S modern -B build-release-x64 -A x64
+
+      - name: Build x64
+        run: cmake --build build-release-x64 --config Release --parallel
+
+      - name: Self-test x64
+        shell: pwsh
+        run: '& ".\build-release-x64\Release\RemoteSupport.exe" --self-test'
+
+      - name: Package release artefacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          New-Item -ItemType Directory -Force package-x86 | Out-Null
+          New-Item -ItemType Directory -Force package-x64 | Out-Null
+          Copy-Item build-release-x86\Release\RemoteSupport.exe package-x86\RemoteSupport.exe
+          Copy-Item build-release-x64\Release\RemoteSupport.exe package-x64\RemoteSupport.exe
+          Copy-Item README.md package-x86\README.md
+          Copy-Item README.md package-x64\README.md
+          Compress-Archive -Path package-x86\* -DestinationPath dist\Windows-Remote-Support-x86.zip
+          Compress-Archive -Path package-x64\* -DestinationPath dist\Windows-Remote-Support-x64.zip
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "v$env:VERSION" `
+            dist\Windows-Remote-Support-x86.zip `
+            dist\Windows-Remote-Support-x64.zip `
+            --target "${{ github.sha }}" `
+            --title "Windows Remote Support v$env:VERSION" `
+            --generate-notes `
+            --prerelease

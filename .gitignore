@@ -1,0 +1,42 @@
+# Visual Studio / MSBuild
+.vs/
+*.user
+*.suo
+*.ncb
+*.opt
+*.plg
+*.aps
+*.VC.db
+*.VC.VC.opendb
+*.ipch
+*.sdf
+*.opensdf
+
+# Build outputs
+Debug/
+Release/
+x64/
+Win32/
+[Bb]in/
+[Oo]bj/
+*.obj
+*.pdb
+*.ilk
+*.idb
+*.pch
+*.res
+*.tlog
+*.lastbuildstate
+*.log
+
+# Binaries produced by local builds
+*.exe
+*.dll
+*.lib
+*.exp
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
