@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstdio>
+#include <cwctype>
 #include <string>
 
 namespace
@@ -15,11 +16,15 @@ constexpr int kStartSessionButton = 1001;
 constexpr int kEndSessionButton = 1002;
 constexpr int kOpenAuditButton = 1003;
 constexpr int kAboutButton = 1004;
+constexpr int kRdpTargetEdit = 1005;
+constexpr int kConnectRdpButton = 1006;
 
 HWND gMainWindow = nullptr;
 HWND gStatusText = nullptr;
 HWND gSessionText = nullptr;
 HWND gEndSessionButton = nullptr;
+HWND gRdpTargetEdit = nullptr;
+HWND gConnectRdpButton = nullptr;
 std::string gSessionId;
 std::wstring gAuditPath;
 
@@ -118,19 +123,56 @@ std::wstring SessionDisplayName()
     return L"Session: " + std::wstring(gSessionId.begin(), gSessionId.end());
 }
 
+bool IsSafeRdpTarget(const std::wstring& target)
+{
+    if (target.empty() || target.size() > 255)
+    {
+        return false;
+    }
+
+    for (const wchar_t value : target)
+    {
+        if (!iswalnum(value) && value != L'.' && value != L'-' && value != L':' && value != L'[' && value != L']')
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::wstring ReadControlText(HWND control)
+{
+    const int length = GetWindowTextLengthW(control);
+    if (length <= 0)
+    {
+        return {};
+    }
+
+    std::wstring text(static_cast<size_t>(length) + 1, L'\0');
+    const int copied = GetWindowTextW(control, text.data(), length + 1);
+    if (copied <= 0)
+    {
+        return {};
+    }
+
+    text.resize(static_cast<size_t>(copied));
+    return text;
+}
+
 void RefreshSessionUi()
 {
-    SetWindowTextW(gStatusText, gSessionId.empty() ? L"Status: ready - no active support session" : L"Status: consent granted - local session active");
+    SetWindowTextW(gStatusText, gSessionId.empty() ? L"Status: ready - no active support session" : L"Status: consent granted - support session active");
     const std::wstring session = SessionDisplayName();
     SetWindowTextW(gSessionText, session.c_str());
     EnableWindow(gEndSessionButton, gSessionId.empty() ? FALSE : TRUE);
+    EnableWindow(gConnectRdpButton, gSessionId.empty() ? FALSE : TRUE);
 }
 
 void StartLocalSession(HWND owner)
 {
     if (!gSessionId.empty())
     {
-        MessageBoxW(owner, L"A local support session is already active. End it before starting another one.", kAppName, MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(owner, L"A support session is already active. End it before starting another one.", kAppName, MB_OK | MB_ICONINFORMATION);
         return;
     }
 
@@ -154,7 +196,7 @@ void StartLocalSession(HWND owner)
     const std::wstring sessionWide(sessionId.begin(), sessionId.end());
     const std::wstring prompt =
         L"Start an authorised support session on this computer?\n\nSession: " + sessionWide +
-        L"\n\nThis preview records explicit local consent and audit events. Network transport and remote-control capabilities are not enabled in this release.";
+        L"\n\nAfter consent, this application can hand off a connection to the built-in Windows Remote Desktop client. Windows remains responsible for remote authentication, authorisation and the RDP connection.";
 
     const int choice = MessageBoxW(
         owner,
@@ -194,6 +236,39 @@ void EndLocalSession(HWND owner, const char* eventName)
     RefreshSessionUi();
 }
 
+void LaunchRemoteDesktop(HWND owner)
+{
+    if (gSessionId.empty())
+    {
+        MessageBoxW(owner, L"Start and approve a support session before opening Remote Desktop.", kAppName, MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+
+    const std::wstring target = ReadControlText(gRdpTargetEdit);
+    if (!IsSafeRdpTarget(target))
+    {
+        MessageBoxW(owner, L"Enter a valid computer name or IP address. Only letters, numbers, dots, hyphens, colons and IPv6 brackets are accepted.", kAppName, MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    if (gAuditPath.empty() || !WriteAudit(gAuditPath, gSessionId, "rdp_launch_requested"))
+    {
+        MessageBoxW(owner, L"The Remote Desktop hand-off was blocked because its audit event could not be recorded.", kAppName, MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    const std::wstring arguments = L"/v:" + target;
+    const HINSTANCE result = ShellExecuteW(owner, L"open", L"mstsc.exe", arguments.c_str(), nullptr, SW_SHOWNORMAL);
+    if (reinterpret_cast<INT_PTR>(result) <= 32)
+    {
+        WriteAudit(gAuditPath, gSessionId, "rdp_launch_failed");
+        MessageBoxW(owner, L"Windows Remote Desktop could not be started on this computer.", kAppName, MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    WriteAudit(gAuditPath, gSessionId, "rdp_client_started");
+}
+
 void OpenAuditLog(HWND owner)
 {
     if (gAuditPath.empty())
@@ -219,7 +294,7 @@ void ShowAbout(HWND owner)
     const std::wstring message =
         L"Windows Remote Support\n\n"
         L"Architecture: " + ArchitectureName() +
-        L"\n\nConsent-first research preview for Windows. The current release provides the desktop UI, secure session identifiers and local auditing while keeping network transport and privileged remote-control capabilities disabled.";
+        L"\n\nConsent-first Windows support application. Remote screen, keyboard and mouse operation is provided by the authenticated Windows Remote Desktop subsystem rather than a custom remote-control protocol.";
     MessageBoxW(owner, message.c_str(), L"About Windows Remote Support", MB_OK | MB_ICONINFORMATION);
 }
 
@@ -243,7 +318,8 @@ int RunSelfTest()
     const std::string second = GenerateSessionId();
     const bool validCharacters = first.find_first_not_of("0123456789abcdef") == std::string::npos;
     const bool validArchitecture = ArchitectureName() == L"x64 (64-bit)" || ArchitectureName() == L"x86 (32-bit)";
-    return first.size() == 32 && second.size() == 32 && first != second && validCharacters && validArchitecture ? 0 : 1;
+    const bool validRdpTarget = IsSafeRdpTarget(L"lab-pc-02:3389") && IsSafeRdpTarget(L"[2001:db8::10]") && !IsSafeRdpTarget(L"/admin");
+    return first.size() == 32 && second.size() == 32 && first != second && validCharacters && validArchitecture && validRdpTarget ? 0 : 1;
 }
 
 void ApplyDefaultFont(HWND control)
@@ -295,7 +371,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
         AddControl(
             0,
             L"STATIC",
-            L"Consent-first Windows support interface. This preview focuses on clear user approval, local session state and auditable operation.",
+            L"Consent-first Windows support interface with an audited hand-off to Windows Remote Desktop.",
             WS_CHILD | WS_VISIBLE,
             28,
             62,
@@ -310,20 +386,24 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
         const std::wstring architecture = L"Application architecture: " + ArchitectureName();
         AddControl(0, L"STATIC", architecture.c_str(), WS_CHILD | WS_VISIBLE, 28, 206, 620, 24, hwnd, 0);
 
-        AddControl(0, L"BUTTON", L"Start consented session", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON, 28, 258, 190, 42, hwnd, kStartSessionButton);
-        gEndSessionButton = AddControl(0, L"BUTTON", L"End session", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 232, 258, 130, 42, hwnd, kEndSessionButton);
-        AddControl(0, L"BUTTON", L"Open audit log", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 376, 258, 130, 42, hwnd, kOpenAuditButton);
-        AddControl(0, L"BUTTON", L"About", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 520, 258, 128, 42, hwnd, kAboutButton);
+        AddControl(0, L"STATIC", L"Remote computer name or IP address:", WS_CHILD | WS_VISIBLE, 28, 242, 300, 24, hwnd, 0);
+        gRdpTargetEdit = AddControl(WS_EX_CLIENTEDGE, L"EDIT", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_AUTOHSCROLL, 28, 268, 396, 30, hwnd, kRdpTargetEdit);
+        gConnectRdpButton = AddControl(0, L"BUTTON", L"Connect with Windows RDP", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 440, 268, 208, 30, hwnd, kConnectRdpButton);
+
+        AddControl(0, L"BUTTON", L"Start consented session", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON, 28, 326, 190, 42, hwnd, kStartSessionButton);
+        gEndSessionButton = AddControl(0, L"BUTTON", L"End session", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 232, 326, 130, 42, hwnd, kEndSessionButton);
+        AddControl(0, L"BUTTON", L"Open audit log", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 376, 326, 130, 42, hwnd, kOpenAuditButton);
+        AddControl(0, L"BUTTON", L"About", WS_CHILD | WS_VISIBLE | WS_TABSTOP, 520, 326, 128, 42, hwnd, kAboutButton);
 
         AddControl(
             0,
             L"STATIC",
-            L"Security baseline: no administrator elevation, no network listener, no hidden background session and no privileged remote actions.",
+            L"Windows RDP provides the network connection, screen, keyboard/mouse and Windows authentication. This application does not install a custom listener or background control service.",
             WS_CHILD | WS_VISIBLE,
             28,
-            326,
+            392,
             620,
-            48,
+            54,
             hwnd,
             0);
 
@@ -344,6 +424,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
             return 0;
         case kAboutButton:
             ShowAbout(hwnd);
+            return 0;
+        case kConnectRdpButton:
+            LaunchRemoteDesktop(hwnd);
             return 0;
         default:
             break;
@@ -397,7 +480,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand)
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         700,
-        440,
+        520,
         nullptr,
         nullptr,
         instance,
