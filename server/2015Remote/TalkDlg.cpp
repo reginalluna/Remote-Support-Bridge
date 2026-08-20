@@ -1,4 +1,4 @@
-// TalkDlg.cpp : ÊµÏÖÎÄ¼þ
+// TalkDlg.cpp : å®žçŽ°æ–‡ä»¶
 //
 
 #include "stdafx.h"
@@ -7,7 +7,7 @@
 #include "afxdialogex.h"
 
 
-// CTalkDlg ¶Ô»°¿ò
+// CTalkDlg å¯¹è¯æ¡†
 
 IMPLEMENT_DYNAMIC(CTalkDlg, CDialog)
 
@@ -38,7 +38,7 @@ BEGIN_MESSAGE_MAP(CTalkDlg, CDialog)
 END_MESSAGE_MAP()
 
 
-// CTalkDlg ÏûÏ¢´¦Àí³ÌÐò
+// CTalkDlg æ¶ˆæ¯å¤„ç†ç¨‹åº
 
 
 BOOL CTalkDlg::OnInitDialog()
@@ -49,34 +49,27 @@ BOOL CTalkDlg::OnInitDialog()
 	m_iocpServer->OnClientPreSending(m_ContextObject, &bToken, sizeof(BYTE));
 
 	return TRUE;  // return TRUE unless you set the focus to a control
-	// Òì³£: OCX ÊôÐÔÒ³Ó¦·µ»Ø FALSE
+	// å¼‚å¸¸: OCX å±žæ€§é¡µåº”è¿”å›ž FALSE
 }
 
 
 void CTalkDlg::OnBnClickedButtonTalk()
 {
-	int iLength = m_EditTalk.GetWindowTextLength();   //EditBox ÉÏ»ñµÃÊý¾Ý³¤¶È
+	CString strData;
+	m_EditTalk.GetWindowText(strData);
 
-	if (!iLength)
+	if (strData.IsEmpty())
 	{
 		return;
 	}
 
-	CString strData;
-	m_EditTalk.GetWindowText(strData);            //EditBox ÉÏ»ñµÃÊý¾Ý
+	const ULONG ulLength = static_cast<ULONG>(strData.GetLength());
+	m_EditTalk.SetWindowText(NULL);
 
-	char* szBuffer = new char[iLength];
-	memset(szBuffer,0,sizeof(char)*iLength);
-
-
-	strcpy(szBuffer,strData.GetBuffer(0));
-
-
-
-	m_EditTalk.SetWindowText(NULL);          //EditBox ÉÏµÄÊý¾ÝÇå¿Õ
-
-
-	m_iocpServer->OnClientPreSending(m_ContextObject, (LPBYTE)szBuffer, strlen(szBuffer));   //½«×Ô¼ºÄÚ´æÖÐµÄÊý¾Ý·¢ËÍ
+	m_iocpServer->OnClientPreSending(
+		m_ContextObject,
+		reinterpret_cast<PBYTE>(const_cast<LPSTR>(strData.GetString())),
+		ulLength);
 }
 
 
@@ -86,10 +79,10 @@ BOOL CTalkDlg::PreTranslateMessage(MSG* pMsg)
 
 	if (pMsg->message == WM_KEYDOWN)
 	{
-		// ÆÁ±ÎVK_ESCAPE¡¢VK_DELETE
+		// å±è”½VK_ESCAPEã€VK_DELETE
 		if (pMsg->wParam == VK_ESCAPE)
 			return true;
-		//Èç¹ûÊÇ¿É±à¼­¿òµÄ»Ø³µ¼ü
+		//å¦‚æžœæ˜¯å¯ç¼–è¾‘æ¡†çš„å›žè½¦é”®
 		if (pMsg->wParam == VK_RETURN && pMsg->hwnd == m_EditTalk.m_hWnd)
 		{
 			OnBnClickedButtonTalk(); 
@@ -105,7 +98,7 @@ BOOL CTalkDlg::PreTranslateMessage(MSG* pMsg)
 
 void CTalkDlg::OnClose()
 {
-	// TODO: ÔÚ´ËÌí¼ÓÏûÏ¢´¦Àí³ÌÐò´úÂëºÍ/»òµ÷ÓÃÄ¬ÈÏÖµ
+	// TODO: åœ¨æ­¤æ·»åŠ æ¶ˆæ¯å¤„ç†ç¨‹åºä»£ç å’Œ/æˆ–è°ƒç”¨é»˜è®¤å€¼
 	m_ContextObject->v1 = 0;
 	CancelIo((HANDLE)m_ContextObject->sClientSocket);
 	closesocket(m_ContextObject->sClientSocket);
