@@ -1,32 +1,33 @@
 # Remote
 
-A Windows remote-support research project being redesigned around a modern **native x64**, consent-first security model.
+A Windows remote-support research project being redesigned around a modern **native x86/x64**, consent-first security model.
 
 The repository still contains the historical Windows/MFC implementation under `client/` and `server/` for reference and migration work. The new implementation lives under [`modern/`](modern/) and does **not** link to or activate the historical remote-command protocol.
 
 > Use the software only on systems you own or are explicitly authorised to administer or test.
 
-## Native x64 redesign
+## Native x86 and x64 redesign
 
-The new `RemoteSupport` application is a clean x64 baseline for current Windows PCs. It uses:
+The new `RemoteSupport` application is a clean Windows baseline for both 32-bit and 64-bit PCs. It uses:
 
-- native **x64** output;
+- native **x86 (Win32)** and **x64** output from the same source tree;
 - Unicode Windows APIs;
 - C++20;
 - explicit visible consent before a session can initialise;
 - cryptographically secure 128-bit session identifiers from Windows CNG (`BCryptGenRandom`);
 - local audit records under `%LOCALAPPDATA%\RemoteSupport\audit.log`;
 - no requested administrator elevation;
-- `/W4`, SDL checks, `/GS`, Control Flow Guard, ASLR, DEP/NX and CET-compatible linking;
-- an automated Debug/Release x64 build and self-test in GitHub Actions.
+- `/W4`, SDL checks, `/GS`, Control Flow Guard, ASLR and DEP/NX on both architectures;
+- CET-compatible linking on x64;
+- automated Debug/Release builds and self-tests for both x86 and x64 in GitHub Actions.
 
 The modern binary deliberately starts with **no privileged remote-control actions and no network listener**. Authentication, encrypted transport and individual support capabilities are added only behind the new security boundary rather than inherited from the legacy protocol.
 
-## Build the modern x64 application
+## Build the modern application
 
 ### Requirements
 
-Use a 64-bit Windows 11 or supported Windows 10 development machine with:
+Use a supported Windows development machine with:
 
 - Visual Studio 2026 with **Desktop development with C++**;
 - a current Windows SDK;
@@ -40,30 +41,55 @@ git clone https://github.com/reginalluna/Remote.git
 cd Remote
 ```
 
-Configure a native x64 build:
+### Build x64
+
+Configure:
 
 ```powershell
-cmake -S modern -B build-modern -A x64
+cmake -S modern -B build-modern-x64 -A x64
 ```
 
 Build Release:
 
 ```powershell
-cmake --build build-modern --config Release --parallel
+cmake --build build-modern-x64 --config Release --parallel
 ```
 
 Run:
 
 ```powershell
-.\build-modern\Release\RemoteSupport.exe
+.\build-modern-x64\Release\RemoteSupport.exe
 ```
+
+### Build x86 / Win32
+
+Configure:
+
+```powershell
+cmake -S modern -B build-modern-x86 -A Win32
+```
+
+Build Release:
+
+```powershell
+cmake --build build-modern-x86 --config Release --parallel
+```
+
+Run:
+
+```powershell
+.\build-modern-x86\Release\RemoteSupport.exe
+```
+
+The x86 binary is suitable for 32-bit Windows environments and also runs on x64 Windows through WoW64. The x64 binary is the preferred target for current 64-bit Windows PCs.
 
 The application displays a visible consent prompt, creates a random session identifier, and records the consent decision locally.
 
-Run the non-interactive security-baseline self-test:
+Run the non-interactive security-baseline self-test with either build:
 
 ```powershell
-.\build-modern\Release\RemoteSupport.exe --self-test
+.\build-modern-x64\Release\RemoteSupport.exe --self-test
+.\build-modern-x86\Release\RemoteSupport.exe --self-test
 ```
 
 A successful self-test exits with code `0`.
@@ -95,7 +121,7 @@ See [`docs/SECURE_REDESIGN.md`](docs/SECURE_REDESIGN.md) and [`SECURITY.md`](SEC
 
 ## Next implementation milestones
 
-The safe migration order for the new x64 application is:
+The safe migration order for the new cross-architecture application is:
 
 1. add authenticated TLS transport and device/operator identity;
 2. add session expiry, replay protection and key rotation;
@@ -113,10 +139,10 @@ Remote/
 ├── modern/
 │   ├── CMakeLists.txt
 │   └── RemoteSupport/
-│       └── main.cpp            # new native x64 consent-first application
+│       └── main.cpp            # new consent-first application
 ├── .github/workflows/
 │   ├── codeql.yml
-│   └── modern-x64.yml          # Debug/Release x64 build + self-test
+│   └── modern-windows.yml      # x86/x64 Debug/Release builds + self-tests
 ├── client/                     # historical client source
 ├── server/                     # historical MFC controller source
 ├── docs/SECURE_REDESIGN.md
@@ -127,7 +153,7 @@ Remote/
 
 ## Historical implementation
 
-The legacy `client/` and `server/` trees remain available for academic comparison, migration analysis and defensive review. They are separate from the new x64 application and should not be treated as the security architecture for the redesign.
+The legacy `client/` and `server/` trees remain available for academic comparison, migration analysis and defensive review. They are separate from the new application and should not be treated as the security architecture for the redesign.
 
 ## Contributing
 
